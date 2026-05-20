@@ -1,0 +1,62 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html,
+body {
+  background-color: #f8f9fa;
+  color: #191c1d;
+  font-family: var(--font-manrope), system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+@layer components {
+  .eyebrow {
+    @apply text-[11px] font-bold tracking-eyebrow uppercase text-outline;
+  }
+  .card {
+    @apply bg-surface-lowest rounded-card shadow-card;
+  }
+  .card-bordered {
+    @apply card border border-surface-mid;
+  }
+  .pill {
+    @apply inline-flex items-center rounded-pill px-3 py-1 text-xs font-semibold;
+  }
+  .cta {
+    @apply inline-flex items-center justify-center gap-2 rounded-pill bg-cta-gradient
+           px-6 py-3 text-sm font-bold text-white shadow-cta
+           transition hover:brightness-110 disabled:opacity-60 disabled:cursor-not-allowed;
+  }
+  .input {
+    @apply w-full rounded-xl border border-surface-mid bg-surface-lowest px-4 py-3
+           text-sm text-ink placeholder:text-outline
+           focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/15
+           transition;
+  }
+  .input-icon {
+    @apply pl-11;
+  }
+}
+
+/* Custom scrollbar for sidebar */
+.zsb-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+.zsb-scroll::-webkit-scrollbar-thumb {
+  background: #e1e3e4;
+  border-radius: 9999px;
+}
+
+/* Login form transition between empresa → credenciales steps. */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
