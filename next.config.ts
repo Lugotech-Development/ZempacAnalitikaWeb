@@ -1,6 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  output: 'export',
+  images: { unoptimized: true },
   reactStrictMode: true,
   // SVGR — import .svg files as React components.
   // Configured for both Turbopack (dev + prod build in Next 16) and webpack

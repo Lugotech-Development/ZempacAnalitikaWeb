@@ -22,7 +22,13 @@ export default function DevolucionesPage() {
 
   return (
     <>
-      <PageHeader eyebrow="Devoluciones" title="Últimos 30 Días" subtitle="Resumen, devoluciones diarias y desglose por sucursal" icon="keyboard_return" isRefreshing={isValidating && status === 'success'} />
+      <PageHeader
+        eyebrow="Devoluciones"
+        title="Últimos 30 Días"
+        subtitle="Resumen, devoluciones diarias y desglose por sucursal"
+        icon="keyboard_return"
+        isRefreshing={isValidating && status === 'success'}
+      />
 
       {status === 'loading' && <LoadingState />}
       {status === 'error' && <ErrorState variant={errorVariant} message={error} onRetry={reload} />}
@@ -84,9 +90,7 @@ function Content({ devoluciones }: { devoluciones: RptDevolucion[] }) {
 
 function SucursalCard({ s }: { s: DevolucionSucursalSummary }) {
   return (
-    <Link
-      href={`/dashboard/devoluciones/${s.sucursal}`}
-      className="block card-bordered p-5 sm:p-6 transition hover:border-tertiary/30 hover:shadow-cta/10">
+    <Link href={`/dashboard/devoluciones/${s.sucursal}`} className="block card-bordered p-5 sm:p-6 transition hover:border-tertiary/30 hover:shadow-cta/10">
       <div className="flex items-start gap-3">
         <div className="flex-1 min-w-0">
           <p className="text-base font-extrabold text-ink truncate">{s.almacenNombre || `Sucursal ${s.sucursal}`}</p>

@@ -1,21 +1,15 @@
-"use client";
+'use client';
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
-import { UnauthorizedError, classifyError, type ErrorVariant } from "./api";
-import {
-  fetchAndCache,
-  getCached,
-  installGlobalRevalidationHooks,
-  subscribe,
-  subscribeRevalidate,
-} from "./cache";
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { UnauthorizedError, classifyError, type ErrorVariant } from './api';
+import { fetchAndCache, getCached, installGlobalRevalidationHooks, subscribe, subscribeRevalidate } from './cache';
 
 type State<T> =
-  | { status: "loading"; data: null; error: null; errorVariant: null }
-  | { status: "success"; data: T; error: null; errorVariant: null }
+  | { status: 'loading'; data: null; error: null; errorVariant: null }
+  | { status: 'success'; data: T; error: null; errorVariant: null }
   | {
-      status: "error";
+      status: 'error';
       data: null;
       error: string;
       errorVariant: ErrorVariant;
@@ -40,12 +34,12 @@ export function useApi<T>(key: string, fetcher: () => Promise<T>) {
     const cached = getCached<T>(key);
     return cached
       ? {
-          status: "success" as const,
+          status: 'success' as const,
           data: cached.data,
           error: null,
-          errorVariant: null,
+          errorVariant: null
         }
-      : { status: "loading" as const, data: null, error: null, errorVariant: null };
+      : { status: 'loading' as const, data: null, error: null, errorVariant: null };
   });
   const [isValidating, setIsValidating] = useState(false);
   const router = useRouter();
@@ -57,28 +51,28 @@ export function useApi<T>(key: string, fetcher: () => Promise<T>) {
     try {
       const data = await fetchAndCache(key, () => fetcherRef.current());
       setState({
-        status: "success",
+        status: 'success',
         data,
         error: null,
-        errorVariant: null,
+        errorVariant: null
       });
     } catch (e) {
       if (e instanceof UnauthorizedError) {
-        router.replace("/login");
+        router.replace('/login');
         return;
       }
       const { variant, message } = classifyError(e);
       const stillCached = getCached<T>(key);
       if (stillCached) {
-        if (process.env.NODE_ENV !== "production") {
+        if (process.env.NODE_ENV !== 'production') {
           console.warn(`[useApi] revalidation failed for "${key}":`, message);
         }
       } else {
         setState({
-          status: "error",
+          status: 'error',
           data: null,
           error: message,
-          errorVariant: variant,
+          errorVariant: variant
         });
       }
     } finally {
@@ -93,10 +87,10 @@ export function useApi<T>(key: string, fetcher: () => Promise<T>) {
       const c = getCached<T>(key);
       if (c) {
         setState({
-          status: "success",
+          status: 'success',
           data: c.data,
           error: null,
-          errorVariant: null,
+          errorVariant: null
         });
       }
     });

@@ -87,9 +87,7 @@ function Content({ ventas }: { ventas: RptVenta[] }) {
 
 function SucursalCard({ s }: { s: VentaSucursalSummary }) {
   return (
-    <Link
-      href={`/dashboard/ventas/${s.sucursal}`}
-      className="block card-bordered p-5 sm:p-6 transition hover:border-primary/30 hover:shadow-cta/10">
+    <Link href={`/dashboard/ventas/${s.sucursal}`} className="block card-bordered p-5 sm:p-6 transition hover:border-primary/30 hover:shadow-cta/10">
       <div className="flex items-start gap-3">
         <div className="flex-1 min-w-0">
           <p className="text-base font-extrabold text-ink truncate">{s.almacenNombre || `Sucursal ${s.sucursal}`}</p>

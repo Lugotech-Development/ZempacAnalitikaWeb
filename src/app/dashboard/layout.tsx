@@ -1,22 +1,27 @@
-// Server component. Reads the visible session cookies set by /api/auth/login
-// and renders the client-side DashboardShell with the session as a prop. This
-// avoids a client-side /api/me round-trip and the "—" → name layout shift on
-// every dashboard navigation. If the user is unauthenticated, middleware will
-// already have redirected them to /login before we get here.
-import { redirect } from 'next/navigation';
-import { cookies } from 'next/headers';
-import { COOKIE } from '@/lib/api-server';
-import DashboardShell from './_shell';
+'use client';
 
-export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const jar = await cookies();
-  const token = jar.get(COOKIE.token)?.value;
-  if (!token) {
-    redirect('/login');
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { getSession } from '@/lib/api';
+import DashboardShell from './_shell';
+import type { SessionInfo } from '@/lib/types';
+
+export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+  const router = useRouter();
+  const [session, setSession] = useState<SessionInfo | null>(null);
+
+  useEffect(() => {
+    const s = getSession();
+    if (!s) {
+      router.replace('/login');
+    } else {
+      setSession({ empresa: s.empresa, usuario: s.usuario });
+    }
+  }, [router]);
+
+  if (!session) {
+    return null; // brief flash while checking auth
   }
-  const session = {
-    empresa: jar.get(COOKIE.empresa)?.value ?? '',
-    usuario: jar.get(COOKIE.username)?.value ?? ''
-  };
+
   return <DashboardShell session={session}>{children}</DashboardShell>;
 }

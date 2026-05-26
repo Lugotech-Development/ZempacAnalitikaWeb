@@ -49,8 +49,7 @@ function LoginForm() {
       await apiLogin({
         empresa: empresa.trim(),
         usuario: usuario.trim(),
-        password,
-        keepSession
+        password
       });
       const dest = search.get('from') ?? '/dashboard';
       router.replace(dest);

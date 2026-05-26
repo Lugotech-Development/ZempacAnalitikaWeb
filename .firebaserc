@@ -1,0 +1,15 @@
+{
+  "projects": {
+    "default": "lugotechbi"
+  },
+  "targets": {
+    "lugotechbi": {
+      "hosting": {
+        "app": [
+          "zempacanalitika"
+        ]
+      }
+    }
+  },
+  "etags": {}
+}
