@@ -1,6 +1,20 @@
 import { Icon, type IconName } from './icon';
 
-export function PageHeader({ eyebrow, title, subtitle, icon = 'bar_chart', isRefreshing = false }: { eyebrow: string; title: string; subtitle?: string; icon?: IconName; isRefreshing?: boolean }) {
+export function PageHeader({
+  eyebrow,
+  title,
+  subtitle,
+  icon = 'bar_chart',
+  isRefreshing = false,
+  onRefresh
+}: {
+  eyebrow: string;
+  title: string;
+  subtitle?: string;
+  icon?: IconName;
+  isRefreshing?: boolean;
+  onRefresh?: () => void;
+}) {
   return (
     <div className="mb-8 flex items-start gap-4">
       <div className="hidden sm:flex h-12 w-12 rounded-2xl bg-primary-gradient text-white items-center justify-center shrink-0">
@@ -19,6 +33,17 @@ export function PageHeader({ eyebrow, title, subtitle, icon = 'bar_chart', isRef
         <h1 className="mt-1 text-3xl sm:text-[32px] font-extrabold tracking-tight text-ink">{title}</h1>
         {subtitle && <p className="mt-1 text-sm text-ink-variant">{subtitle}</p>}
       </div>
+      {onRefresh && (
+        <button
+          type="button"
+          onClick={onRefresh}
+          disabled={isRefreshing}
+          className="shrink-0 flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold text-primary bg-primary/[0.08] hover:bg-primary/[0.14] disabled:opacity-50 disabled:cursor-not-allowed transition"
+          aria-label="Actualizar datos">
+          <Icon name="refresh" size={16} className={isRefreshing ? 'animate-spin' : ''} />
+          <span className="hidden sm:inline">Actualizar</span>
+        </button>
+      )}
     </div>
   );
 }

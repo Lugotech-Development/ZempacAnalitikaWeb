@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { UnauthorizedError, classifyError, type ErrorVariant } from './api';
-import { fetchAndCache, getCached, installGlobalRevalidationHooks, subscribe, subscribeRevalidate } from './cache';
+import { fetchAndCache, getCached, subscribe } from './cache';
 
 type State<T> =
   | { status: 'loading'; data: null; error: null; errorVariant: null }
@@ -99,14 +99,6 @@ export function useApi<T>(key: string, fetcher: () => Promise<T>) {
   // Always revalidate on mount.
   useEffect(() => {
     load();
-  }, [load]);
-
-  // Revalidate on focus / visibility / online.
-  useEffect(() => {
-    installGlobalRevalidationHooks();
-    return subscribeRevalidate(() => {
-      load();
-    });
   }, [load]);
 
   return { ...state, isValidating, reload: load };

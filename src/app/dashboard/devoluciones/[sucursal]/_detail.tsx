@@ -10,7 +10,7 @@ import { EmptyState, ErrorState, LoadingState, SkeletonBox } from '@/components/
 import { fmtDate, fmtDayMonth, fmtInt, fmtMoney } from '@/lib/format';
 import { apiDevoluciones } from '@/lib/api';
 import { useApi } from '@/lib/use-api';
-import { groupDevolucionesBySucursal, type DevolucionSucursalSummary, type RptDevolucion } from '@/lib/types';
+import { groupDevolucionesBySucursal, type RptDevolucion, type DevolucionSucursalSummary } from '@/lib/types';
 
 const DevolucionesChart = dynamic(() => import('@/components/series-chart'), {
   ssr: false,
@@ -24,9 +24,7 @@ export default function DevolucionesSucursalDetail() {
 
   return (
     <>
-      <Link
-        href="/dashboard/devoluciones"
-        className="inline-flex items-center gap-2 text-sm font-semibold text-primary hover:underline mb-4">
+      <Link href="/dashboard/devoluciones" className="inline-flex items-center gap-2 text-sm font-semibold text-primary hover:underline mb-4">
         <Icon name="arrow_back" size={16} />
         Devoluciones
       </Link>
@@ -97,10 +95,7 @@ function Content({ s }: { s: DevolucionSucursalSummary }) {
       )}
 
       <div className="mt-6">
-        <button
-          type="button"
-          onClick={() => setExpanded(v => !v)}
-          className="w-full card flex items-center px-4 py-3.5 text-left">
+        <button type="button" onClick={() => setExpanded(v => !v)} className="w-full card flex items-center px-4 py-3.5 text-left">
           <EyebrowLabel>Detalle Diario</EyebrowLabel>
           <span className="ml-2 text-xs text-ink-variant">{sortedDaily.length} registros</span>
           <span className="ml-auto">
@@ -137,6 +132,8 @@ function DailyDevolucionCard({ item }: { item: RptDevolucion }) {
     </div>
   );
 }
+
+// ─── Shared UI ──────────────────────────────────────────────────────────────
 
 function Row({ label, value }: { label: string; value: string }) {
   return (

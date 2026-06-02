@@ -19,9 +19,9 @@ const NAV: { href: string; label: string; icon: IconName }[] = [
     icon: 'keyboard_return'
   },
   { href: '/dashboard/productos', label: 'Productos', icon: 'shopping_bag' },
-  { href: '/dashboard/inventario', label: 'Inventario', icon: 'inventory_2' },
-  { href: '/dashboard/vencimientos', label: 'Vencimientos', icon: 'hourglass_top' },
-  { href: '/dashboard/transferencias', label: 'Transferencias', icon: 'swap_horiz' },
+  // { href: '/dashboard/inventario', label: 'Inventario', icon: 'inventory_2' },
+  // { href: '/dashboard/vencimientos', label: 'Vencimientos', icon: 'hourglass_top' },
+  // { href: '/dashboard/transferencias', label: 'Transferencias', icon: 'swap_horiz' },
   { href: '/dashboard/cuentas-por-cobrar', label: 'Cuentas por Cobrar', icon: 'request_quote' },
   {
     href: '/dashboard/cuadre-caja',

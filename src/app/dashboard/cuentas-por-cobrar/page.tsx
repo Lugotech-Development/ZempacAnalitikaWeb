@@ -16,7 +16,14 @@ export default function CuentasPorCobrarPage() {
 
   return (
     <>
-      <PageHeader eyebrow="Cuentas por Cobrar" title="Créditos a Clientes" subtitle="Saldos pendientes y antigüedad" icon="request_quote" isRefreshing={isValidating && status === 'success'} />
+      <PageHeader
+        eyebrow="Cuentas por Cobrar"
+        title="Créditos a Clientes"
+        subtitle="Saldos pendientes y antigüedad"
+        icon="request_quote"
+        isRefreshing={isValidating && status === 'success'}
+        onRefresh={reload}
+      />
 
       {status === 'loading' && <LoadingState />}
       {status === 'error' && <ErrorState variant={errorVariant} message={error} onRetry={reload} />}
@@ -226,7 +233,7 @@ type ClienteCardProps = {
 
 function ClienteCard({ c, rank, maxSaldo, expanded, onExpand, detail, onLoadMore }: ClienteCardProps) {
   const ratio = c.saldoTotal / maxSaldo;
-  const critico = c.diasMaxAtraso > 90 || /(>?90|mayor)/i.test(c.categoria ?? '');
+  const critico = c.diasMaxAtraso > 90 || /(>\s*90|mayor)/i.test(c.categoria ?? '');
   return (
     <div className={`rounded-2xl border p-4 ${critico ? 'border-tertiary/30 bg-tertiary/[0.03]' : 'border-surface-mid'}`}>
       <button

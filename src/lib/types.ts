@@ -60,6 +60,7 @@ export type RptVenta = {
   ticketPromedio: number | null;
   totalCosto: number | null;
   porcMargenEstimado: number | null;
+  porcentajeRelativo: number | null;
 };
 
 export type RptDevolucion = {
@@ -229,7 +230,8 @@ export const parseVenta = (j: J): RptVenta => ({
   totalPagado: num(j.TotalPagado),
   ticketPromedio: num(j.TicketPromedio),
   totalCosto: num(j.TotalCosto),
-  porcMargenEstimado: num(j.PorcMargenEstimado)
+  porcMargenEstimado: num(j.PorcMargenEstimado),
+  porcentajeRelativo: num(j.PorcentajeRelativo)
 });
 
 export const parseDevolucion = (j: J): RptDevolucion => ({
@@ -362,6 +364,7 @@ export type VentaSucursalSummary = {
   ticketPromedio: number;
   totalCosto: number;
   porcMargenEstimado: number;
+  porcentajeRelativo: number;
   dailyItems: RptVenta[];
 };
 
@@ -393,6 +396,7 @@ export function groupVentasBySucursal(items: RptVenta[]): VentaSucursalSummary[]
       ticketPromedio: cantidadFacturas > 0 ? totalVendido / cantidadFacturas : 0,
       totalCosto: sum('totalCosto'),
       porcMargenEstimado,
+      porcentajeRelativo: sum('porcentajeRelativo'),
       dailyItems: rows
     });
   }

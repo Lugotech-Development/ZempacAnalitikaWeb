@@ -75,6 +75,7 @@ import LocalShipping from '@material-symbols/svg-400/outlined/local_shipping.svg
 import Group from '@material-symbols/svg-400/outlined/group.svg';
 import Schedule from '@material-symbols/svg-400/outlined/schedule.svg';
 import ArrowOutward from '@material-symbols/svg-400/outlined/arrow_outward.svg';
+import PieChart from '@material-symbols/svg-400/outlined/pie_chart.svg';
 
 const REGISTRY = {
   dashboard: Dashboard,
@@ -143,7 +144,8 @@ const REGISTRY = {
   local_shipping: LocalShipping,
   group: Group,
   schedule: Schedule,
-  arrow_outward: ArrowOutward
+  arrow_outward: ArrowOutward,
+  pie_chart: PieChart
 } satisfies Record<string, FC<SVGProps<SVGSVGElement>>>;
 
 export type IconName = keyof typeof REGISTRY;

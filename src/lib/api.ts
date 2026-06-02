@@ -16,7 +16,7 @@ import {
   parseVenta
 } from './types';
 
-const UPSTREAM = 'https://reporteszempacapi.azurewebsites.net';
+const UPSTREAM = process.env.NEXT_PUBLIC_UPSTREAM_API_HOST ?? 'https://reporteszempacapi.azurewebsites.net';
 
 const STORAGE_KEY = 'zempac.session';
 
@@ -187,7 +187,8 @@ export async function apiLogin(input: { empresa: string; usuario: string; passwo
       body: JSON.stringify({
         empresaCodigo: input.empresa,
         username: input.usuario,
-        password: input.password
+        password: input.password,
+        clientType: 0
       })
     });
   } catch {

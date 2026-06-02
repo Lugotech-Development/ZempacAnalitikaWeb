@@ -45,27 +45,27 @@ const REPORTS: Hit[] = [
     href: '/dashboard/productos',
     icon: 'shopping_bag'
   },
-  {
-    type: 'Reporte',
-    title: 'Inventario',
-    subtitle: 'Stock y valor por sucursal',
-    href: '/dashboard/inventario',
-    icon: 'inventory_2'
-  },
-  {
-    type: 'Reporte',
-    title: 'Vencimientos',
-    subtitle: 'Lotes próximos a vencer',
-    href: '/dashboard/vencimientos',
-    icon: 'hourglass_top'
-  },
-  {
-    type: 'Reporte',
-    title: 'Transferencias',
-    subtitle: 'Movimientos entre sucursales',
-    href: '/dashboard/transferencias',
-    icon: 'swap_horiz'
-  },
+  // {
+  //   type: 'Reporte',
+  //   title: 'Inventario',
+  //   subtitle: 'Stock y valor por sucursal',
+  //   href: '/dashboard/inventario',
+  //   icon: 'inventory_2'
+  // },
+  // {
+  //   type: 'Reporte',
+  //   title: 'Vencimientos',
+  //   subtitle: 'Lotes próximos a vencer',
+  //   href: '/dashboard/vencimientos',
+  //   icon: 'hourglass_top'
+  // },
+  // {
+  //   type: 'Reporte',
+  //   title: 'Transferencias',
+  //   subtitle: 'Movimientos entre sucursales',
+  //   href: '/dashboard/transferencias',
+  //   icon: 'swap_horiz'
+  // },
   {
     type: 'Reporte',
     title: 'Cuentas por Cobrar',

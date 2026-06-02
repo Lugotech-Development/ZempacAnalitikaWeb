@@ -1,4 +1,4 @@
-import type { NextConfig } from "next";
+import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
   output: 'export',
@@ -9,20 +9,20 @@ const nextConfig: NextConfig = {
   // (used if someone falls back to non-turbopack builds).
   turbopack: {
     rules: {
-      "*.svg": {
+      '*.svg': {
         loaders: [
           {
-            loader: "@svgr/webpack",
+            loader: '@svgr/webpack',
             options: {
               svgo: true,
               titleProp: false,
-              svgProps: { fill: "currentColor" },
-            },
-          },
+              svgProps: { fill: 'currentColor' }
+            }
+          }
         ],
-        as: "*.js",
-      },
-    },
+        as: '*.js'
+      }
+    }
   },
   webpack(config) {
     config.module.rules.push({
@@ -30,17 +30,17 @@ const nextConfig: NextConfig = {
       issuer: /\.[jt]sx?$/,
       use: [
         {
-          loader: "@svgr/webpack",
+          loader: '@svgr/webpack',
           options: {
             svgo: true,
             titleProp: false,
-            svgProps: { fill: "currentColor" },
-          },
-        },
-      ],
+            svgProps: { fill: 'currentColor' }
+          }
+        }
+      ]
     });
     return config;
-  },
+  }
 };
 
 export default nextConfig;

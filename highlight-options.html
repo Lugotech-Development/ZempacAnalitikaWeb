@@ -1,0 +1,684 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Opciones de Highlight – Distribución de Ventas</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&display=swap" rel="stylesheet" />
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      body {
+        font-family: 'Manrope', sans-serif;
+        background: #f8f9fa;
+        color: #191c1d;
+        padding: 32px 24px;
+      }
+      h1 {
+        font-size: 24px;
+        font-weight: 800;
+        letter-spacing: -0.02em;
+        margin-bottom: 8px;
+      }
+      .subtitle {
+        font-size: 14px;
+        color: #747688;
+        margin-bottom: 48px;
+      }
+      .option {
+        margin-bottom: 64px;
+      }
+      .option-header {
+        display: flex;
+        align-items: baseline;
+        gap: 12px;
+        margin-bottom: 4px;
+      }
+      .option-header h2 {
+        font-size: 18px;
+        font-weight: 800;
+      }
+      .option-tag {
+        font-size: 10px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        padding: 3px 8px;
+        border-radius: 999px;
+        background: rgba(0, 64, 223, 0.08);
+        color: #0040df;
+      }
+      .option-desc {
+        font-size: 13px;
+        color: #434656;
+        margin-bottom: 20px;
+        line-height: 1.5;
+      }
+      .card {
+        background: #fff;
+        border-radius: 20px;
+        box-shadow: 0 4px 24px rgba(25, 28, 29, 0.06);
+        padding: 28px 24px;
+      }
+      .eyebrow {
+        font-size: 11px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: #747688;
+      }
+      .chart-desc {
+        font-size: 12px;
+        color: #434656;
+        margin-top: 4px;
+        margin-bottom: 16px;
+      }
+      .total-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        border-radius: 999px;
+        background: rgba(0, 64, 223, 0.06);
+        padding: 6px 14px;
+        margin-bottom: 16px;
+        font-size: 11px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: #0040df;
+      }
+
+      /* Chart bar structure */
+      .bar-row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 6px 0;
+      }
+      .bar-label {
+        width: 140px;
+        flex-shrink: 0;
+        text-align: right;
+      }
+      .bar-label .name {
+        font-size: 12px;
+        font-weight: 600;
+        color: #191c1d;
+      }
+      .bar-label .amount {
+        font-size: 10px;
+        color: #747688;
+        margin-top: 1px;
+      }
+      .bar-track {
+        flex: 1;
+        height: 24px;
+        border-radius: 0 6px 6px 0;
+        position: relative;
+      }
+      .bar-fill {
+        height: 100%;
+        border-radius: 0 6px 6px 0;
+        transition: all 0.3s ease;
+      }
+      .bar-value {
+        position: absolute;
+        right: -48px;
+        top: 50%;
+        transform: translateY(-50%);
+        font-size: 12px;
+        font-weight: 700;
+        color: #191c1d;
+        width: 44px;
+      }
+      .bar-container {
+        flex: 1;
+        position: relative;
+        padding-right: 52px;
+      }
+
+      /* === OPTION A: Top 3 / Bottom 3 color bands === */
+      .optA .bar-fill.top {
+        background: #0040df;
+      }
+      .optA .bar-fill.mid {
+        background: #0040df;
+        opacity: 0.35;
+      }
+      .optA .bar-fill.bottom {
+        background: #993100;
+        opacity: 0.7;
+      }
+      .optA .bar-row.top .bar-label .name {
+        color: #0040df;
+        font-weight: 700;
+      }
+      .optA .bar-row.bottom .bar-label .name {
+        color: #993100;
+        font-weight: 700;
+      }
+      .optA .rank-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 18px;
+        height: 18px;
+        border-radius: 6px;
+        font-size: 9px;
+        font-weight: 800;
+        margin-right: 6px;
+      }
+      .optA .rank-badge.gold {
+        background: #fff3e0;
+        color: #e65100;
+      }
+      .optA .rank-badge.silver {
+        background: #f3f4f5;
+        color: #434656;
+      }
+      .optA .rank-badge.bronze {
+        background: #fbe9e7;
+        color: #bf360c;
+      }
+      .optA .rank-badge.warn {
+        background: #ffebee;
+        color: #c62828;
+      }
+
+      /* === OPTION B: Gradient intensity (opacity ramp) === */
+      .optB .bar-fill {
+        background: #0040df;
+      }
+      .optB .bar-row.top-1 .bar-fill {
+        opacity: 1;
+      }
+      .optB .bar-row.top-2 .bar-fill {
+        opacity: 0.82;
+      }
+      .optB .bar-row.top-3 .bar-fill {
+        opacity: 0.64;
+      }
+      .optB .bar-row.mid-1 .bar-fill {
+        opacity: 0.46;
+      }
+      .optB .bar-row.mid-2 .bar-fill {
+        opacity: 0.34;
+      }
+      .optB .bar-row.mid-3 .bar-fill {
+        opacity: 0.24;
+      }
+      .optB .bar-row.bot-1 .bar-fill {
+        opacity: 0.16;
+      }
+      .optB .bar-row.bot-2 .bar-fill {
+        opacity: 0.1;
+      }
+      .optB .bar-row .pct-of-max {
+        position: absolute;
+        left: 0;
+        top: -14px;
+        font-size: 9px;
+        font-weight: 600;
+        color: #747688;
+      }
+      .optB .threshold-line {
+        border-top: 1.5px dashed #edeeef;
+        margin: 4px 0 4px 152px;
+        position: relative;
+      }
+      .optB .threshold-label {
+        position: absolute;
+        right: 0;
+        top: -10px;
+        font-size: 9px;
+        color: #747688;
+        font-weight: 600;
+      }
+
+      /* === OPTION C: Threshold highlight with annotation === */
+      .optC .bar-fill {
+        background: #0040df;
+        opacity: 0.3;
+      }
+      .optC .bar-row.above .bar-fill {
+        background: #0040df;
+        opacity: 1;
+      }
+      .optC .bar-row.above .bar-label .name {
+        font-weight: 700;
+      }
+      .optC .bar-row.above .bar-value {
+        color: #0040df;
+      }
+      .optC .avg-line {
+        position: relative;
+        margin: 6px 0 6px 152px;
+        border-top: 2px dashed #0040df;
+      }
+      .optC .avg-label {
+        position: absolute;
+        right: 52px;
+        top: -10px;
+        font-size: 9px;
+        font-weight: 700;
+        color: #0040df;
+        background: #fff;
+        padding: 0 4px;
+      }
+      .optC .summary-row {
+        display: flex;
+        gap: 12px;
+        margin-top: 16px;
+        padding-top: 14px;
+        border-top: 1px solid #edeeef;
+      }
+      .optC .summary-chip {
+        flex: 1;
+        padding: 10px 14px;
+        border-radius: 12px;
+      }
+      .optC .summary-chip.above-bg {
+        background: rgba(0, 64, 223, 0.06);
+      }
+      .optC .summary-chip.below-bg {
+        background: #f3f4f5;
+      }
+      .optC .summary-chip .chip-label {
+        font-size: 10px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: #747688;
+      }
+      .optC .summary-chip .chip-value {
+        font-size: 16px;
+        font-weight: 800;
+        margin-top: 2px;
+      }
+      .optC .summary-chip.above-bg .chip-value {
+        color: #0040df;
+      }
+      .optC .summary-chip.below-bg .chip-value {
+        color: #434656;
+      }
+
+      .pros-cons {
+        margin-top: 16px;
+        padding: 14px 16px;
+        background: #f8f9fa;
+        border-radius: 12px;
+        font-size: 12px;
+        line-height: 1.6;
+      }
+      .pros-cons strong {
+        font-weight: 700;
+      }
+      .pros-cons .pro {
+        color: #137333;
+      }
+      .pros-cons .con {
+        color: #993100;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Highlight Options — Distribución de Ventas</h1>
+    <p class="subtitle">3 propuestas para resaltar información clave en el gráfico de porcentaje relativo por sucursal</p>
+
+    <!-- ═══════════════════════════════════════════════════════════════════════ -->
+    <!-- OPTION A -->
+    <!-- ═══════════════════════════════════════════════════════════════════════ -->
+    <div class="option">
+      <div class="option-header">
+        <h2>Opción A</h2>
+        <span class="option-tag">Top 3 & Bottom 3</span>
+      </div>
+      <p class="option-desc">
+        Las 3 sucursales con mayor contribución se destacan en azul primario con badge de ranking. Las 3 con menor contribución se marcan en terracota (color terciario del design system) para señalar
+        oportunidad de mejora. Las intermedias quedan en azul tenue.
+      </p>
+
+      <div class="card optA">
+        <span class="eyebrow">Distribución de Ventas</span>
+        <p class="chart-desc">Participación de cada sucursal en el total de ventas</p>
+        <div class="total-badge">Total: $1,842,500.00 = 100%</div>
+
+        <!-- Top 3 -->
+        <div class="bar-row top">
+          <div class="bar-label">
+            <span class="rank-badge gold">1</span><span class="name">Tegucigalpa Centro</span>
+            <div class="amount">$553,200</div>
+          </div>
+          <div class="bar-container">
+            <div class="bar-track"><div class="bar-fill top" style="width: 80%"></div></div>
+            <span class="bar-value">30.0%</span>
+          </div>
+        </div>
+        <div class="bar-row top">
+          <div class="bar-label">
+            <span class="rank-badge silver">2</span><span class="name">San Pedro Sula</span>
+            <div class="amount">$442,600</div>
+          </div>
+          <div class="bar-container">
+            <div class="bar-track"><div class="bar-fill top" style="width: 64%"></div></div>
+            <span class="bar-value">24.0%</span>
+          </div>
+        </div>
+        <div class="bar-row top">
+          <div class="bar-label">
+            <span class="rank-badge bronze">3</span><span class="name">La Ceiba</span>
+            <div class="amount">$295,200</div>
+          </div>
+          <div class="bar-container">
+            <div class="bar-track"><div class="bar-fill top" style="width: 42.6%"></div></div>
+            <span class="bar-value">16.0%</span>
+          </div>
+        </div>
+
+        <!-- Mid -->
+        <div class="bar-row mid">
+          <div class="bar-label">
+            <span class="name">Comayagua</span>
+            <div class="amount">$202,675</div>
+          </div>
+          <div class="bar-container">
+            <div class="bar-track"><div class="bar-fill mid" style="width: 29.3%"></div></div>
+            <span class="bar-value">11.0%</span>
+          </div>
+        </div>
+        <div class="bar-row mid">
+          <div class="bar-label">
+            <span class="name">Choluteca</span>
+            <div class="amount">$147,400</div>
+          </div>
+          <div class="bar-container">
+            <div class="bar-track"><div class="bar-fill mid" style="width: 21.3%"></div></div>
+            <span class="bar-value">8.0%</span>
+          </div>
+        </div>
+
+        <!-- Bottom 3 -->
+        <div class="bar-row bottom">
+          <div class="bar-label">
+            <span class="rank-badge warn">6</span><span class="name">Danlí</span>
+            <div class="amount">$92,125</div>
+          </div>
+          <div class="bar-container">
+            <div class="bar-track"><div class="bar-fill bottom" style="width: 13.3%"></div></div>
+            <span class="bar-value">5.0%</span>
+          </div>
+        </div>
+        <div class="bar-row bottom">
+          <div class="bar-label">
+            <span class="rank-badge warn">7</span><span class="name">Juticalpa</span>
+            <div class="amount">$73,700</div>
+          </div>
+          <div class="bar-container">
+            <div class="bar-track"><div class="bar-fill bottom" style="width: 10.6%"></div></div>
+            <span class="bar-value">4.0%</span>
+          </div>
+        </div>
+        <div class="bar-row bottom">
+          <div class="bar-label">
+            <span class="rank-badge warn">8</span><span class="name">Santa Rosa</span>
+            <div class="amount">$35,600</div>
+          </div>
+          <div class="bar-container">
+            <div class="bar-track"><div class="bar-fill bottom" style="width: 5.1%"></div></div>
+            <span class="bar-value">2.0%</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="pros-cons">
+        <strong class="pro">✓ Pro:</strong> Lectura inmediata de líderes y rezagados. El color dual (azul/terracota) ya existe en el sistema de diseño.<br />
+        <strong class="con">✗ Contra:</strong> Si hay pocas sucursales (ej. 4), las categorías top/bottom se solapan.
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════════════════ -->
+    <!-- OPTION B -->
+    <!-- ═══════════════════════════════════════════════════════════════════════ -->
+    <div class="option">
+      <div class="option-header">
+        <h2>Opción B</h2>
+        <span class="option-tag">Gradient Intensity</span>
+      </div>
+      <p class="option-desc">
+        Todas las barras usan el mismo color primario pero con opacidad proporcional a su ranking. La sucursal #1 tiene opacidad 100%, y cada posición inferior pierde intensidad progresivamente. Se
+        agrega una línea divisoria «Promedio» para marcar el punto de corte natural.
+        <strong>Sin categorías fijas</strong> — el diseño escala a cualquier número de sucursales.
+      </p>
+
+      <div class="card optB">
+        <span class="eyebrow">Distribución de Ventas</span>
+        <p class="chart-desc">Participación de cada sucursal en el total de ventas</p>
+        <div class="total-badge">Total: $1,842,500.00 = 100%</div>
+
+        <div class="bar-row top-1">
+          <div class="bar-label">
+            <span class="name">Tegucigalpa Centro</span>
+            <div class="amount">$553,200</div>
+          </div>
+          <div class="bar-container">
+            <div class="bar-track"><div class="bar-fill" style="width: 80%"></div></div>
+            <span class="bar-value">30.0%</span>
+          </div>
+        </div>
+        <div class="bar-row top-2">
+          <div class="bar-label">
+            <span class="name">San Pedro Sula</span>
+            <div class="amount">$442,600</div>
+          </div>
+          <div class="bar-container">
+            <div class="bar-track"><div class="bar-fill" style="width: 64%"></div></div>
+            <span class="bar-value">24.0%</span>
+          </div>
+        </div>
+        <div class="bar-row top-3">
+          <div class="bar-label">
+            <span class="name">La Ceiba</span>
+            <div class="amount">$295,200</div>
+          </div>
+          <div class="bar-container">
+            <div class="bar-track"><div class="bar-fill" style="width: 42.6%"></div></div>
+            <span class="bar-value">16.0%</span>
+          </div>
+        </div>
+
+        <div class="threshold-line"><span class="threshold-label">— promedio 12.5% —</span></div>
+
+        <div class="bar-row mid-1">
+          <div class="bar-label">
+            <span class="name">Comayagua</span>
+            <div class="amount">$202,675</div>
+          </div>
+          <div class="bar-container">
+            <div class="bar-track"><div class="bar-fill" style="width: 29.3%"></div></div>
+            <span class="bar-value">11.0%</span>
+          </div>
+        </div>
+        <div class="bar-row mid-2">
+          <div class="bar-label">
+            <span class="name">Choluteca</span>
+            <div class="amount">$147,400</div>
+          </div>
+          <div class="bar-container">
+            <div class="bar-track"><div class="bar-fill" style="width: 21.3%"></div></div>
+            <span class="bar-value">8.0%</span>
+          </div>
+        </div>
+        <div class="bar-row mid-3">
+          <div class="bar-label">
+            <span class="name">Danlí</span>
+            <div class="amount">$92,125</div>
+          </div>
+          <div class="bar-container">
+            <div class="bar-track"><div class="bar-fill" style="width: 13.3%"></div></div>
+            <span class="bar-value">5.0%</span>
+          </div>
+        </div>
+        <div class="bar-row bot-1">
+          <div class="bar-label">
+            <span class="name">Juticalpa</span>
+            <div class="amount">$73,700</div>
+          </div>
+          <div class="bar-container">
+            <div class="bar-track"><div class="bar-fill" style="width: 10.6%"></div></div>
+            <span class="bar-value">4.0%</span>
+          </div>
+        </div>
+        <div class="bar-row bot-2">
+          <div class="bar-label">
+            <span class="name">Santa Rosa</span>
+            <div class="amount">$35,600</div>
+          </div>
+          <div class="bar-container">
+            <div class="bar-track"><div class="bar-fill" style="width: 5.1%"></div></div>
+            <span class="bar-value">2.0%</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="pros-cons">
+        <strong class="pro">✓ Pro:</strong> Elegante y minimalista. Funciona con 3 o 30 sucursales sin configurar "cuántas resaltar". La línea de promedio da contexto estadístico.<br />
+        <strong class="con">✗ Contra:</strong> Las barras inferiores pueden ser muy tenues — necesitaría un mínimo de opacidad (~10%). Menor contraste para daltonismo.
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════════════════ -->
+    <!-- OPTION C -->
+    <!-- ═══════════════════════════════════════════════════════════════════════ -->
+    <div class="option">
+      <div class="option-header">
+        <h2>Opción C</h2>
+        <span class="option-tag">Above / Below Average</span>
+      </div>
+      <p class="option-desc">
+        El promedio se calcula automáticamente (100% ÷ n sucursales). Toda sucursal por encima del promedio se muestra con barra sólida + texto azul; las que están debajo se atenúan. Una línea
+        punteada marca el umbral y al pie se muestran 2 chips resumen: cuántas están arriba y cuántas abajo.
+        <strong>Adaptativo</strong> — no depende de un conteo fijo.
+      </p>
+
+      <div class="card optC">
+        <span class="eyebrow">Distribución de Ventas</span>
+        <p class="chart-desc">Participación de cada sucursal en el total de ventas</p>
+        <div class="total-badge">Total: $1,842,500.00 = 100%</div>
+
+        <!-- Above average (12.5% threshold for 8 items) -->
+        <div class="bar-row above">
+          <div class="bar-label">
+            <span class="name">Tegucigalpa Centro</span>
+            <div class="amount">$553,200</div>
+          </div>
+          <div class="bar-container">
+            <div class="bar-track"><div class="bar-fill" style="width: 80%"></div></div>
+            <span class="bar-value">30.0%</span>
+          </div>
+        </div>
+        <div class="bar-row above">
+          <div class="bar-label">
+            <span class="name">San Pedro Sula</span>
+            <div class="amount">$442,600</div>
+          </div>
+          <div class="bar-container">
+            <div class="bar-track"><div class="bar-fill" style="width: 64%"></div></div>
+            <span class="bar-value">24.0%</span>
+          </div>
+        </div>
+        <div class="bar-row above">
+          <div class="bar-label">
+            <span class="name">La Ceiba</span>
+            <div class="amount">$295,200</div>
+          </div>
+          <div class="bar-container">
+            <div class="bar-track"><div class="bar-fill" style="width: 42.6%"></div></div>
+            <span class="bar-value">16.0%</span>
+          </div>
+        </div>
+
+        <!-- Average line -->
+        <div class="avg-line"><span class="avg-label">Promedio: 12.5%</span></div>
+
+        <!-- Below average -->
+        <div class="bar-row">
+          <div class="bar-label">
+            <span class="name">Comayagua</span>
+            <div class="amount">$202,675</div>
+          </div>
+          <div class="bar-container">
+            <div class="bar-track"><div class="bar-fill" style="width: 29.3%"></div></div>
+            <span class="bar-value">11.0%</span>
+          </div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label">
+            <span class="name">Choluteca</span>
+            <div class="amount">$147,400</div>
+          </div>
+          <div class="bar-container">
+            <div class="bar-track"><div class="bar-fill" style="width: 21.3%"></div></div>
+            <span class="bar-value">8.0%</span>
+          </div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label">
+            <span class="name">Danlí</span>
+            <div class="amount">$92,125</div>
+          </div>
+          <div class="bar-container">
+            <div class="bar-track"><div class="bar-fill" style="width: 13.3%"></div></div>
+            <span class="bar-value">5.0%</span>
+          </div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label">
+            <span class="name">Juticalpa</span>
+            <div class="amount">$73,700</div>
+          </div>
+          <div class="bar-container">
+            <div class="bar-track"><div class="bar-fill" style="width: 10.6%"></div></div>
+            <span class="bar-value">4.0%</span>
+          </div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label">
+            <span class="name">Santa Rosa</span>
+            <div class="amount">$35,600</div>
+          </div>
+          <div class="bar-container">
+            <div class="bar-track"><div class="bar-fill" style="width: 5.1%"></div></div>
+            <span class="bar-value">2.0%</span>
+          </div>
+        </div>
+
+        <!-- Summary chips -->
+        <div class="summary-row">
+          <div class="summary-chip above-bg">
+            <div class="chip-label">Arriba del promedio</div>
+            <div class="chip-value">3 sucursales · 70%</div>
+          </div>
+          <div class="summary-chip below-bg">
+            <div class="chip-label">Debajo del promedio</div>
+            <div class="chip-value">5 sucursales · 30%</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="pros-cons">
+        <strong class="pro">✓ Pro:</strong> Completamente adaptativo (sin "Top N" hardcoded). Los chips resumen dan un insight ejecutivo inmediato. El umbral es objetivo y fácil de explicar.<br />
+        <strong class="con">✗ Contra:</strong> Si la distribución es muy desigual (1 sucursal con 80%), casi todas quedan "debajo" y el resalte pierde utilidad.
+      </div>
+    </div>
+
+    <hr style="border: none; border-top: 1px solid #edeeef; margin: 48px 0 24px" />
+    <p style="font-size: 12px; color: #747688; text-align: center">
+      Estos mockups usan los mismos tokens del design system (Primary #0040DF, Tertiary #993100, Surface, Ink, Outline).<br />
+      La estructura de barras horizontales replica el componente <code>DistributionChart</code> actual.
+    </p>
+  </body>
+</html>

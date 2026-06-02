@@ -24,9 +24,7 @@ export default function VentasSucursalDetail() {
 
   return (
     <>
-      <Link
-        href="/dashboard/ventas"
-        className="inline-flex items-center gap-2 text-sm font-semibold text-primary hover:underline mb-4">
+      <Link href="/dashboard/ventas" className="inline-flex items-center gap-2 text-sm font-semibold text-primary hover:underline mb-4">
         <Icon name="arrow_back" size={16} />
         Ventas
       </Link>
@@ -87,8 +85,9 @@ function Content({ s }: { s: VentaSucursalSummary }) {
         <SummaryTile label="Impuesto" value={fmtMoney(s.montoImpuesto)} icon="account_balance" color="secondary" />
         <SummaryTile label="Total Costo" value={fmtMoney(s.totalCosto)} icon="monetization_on" color="tertiary" />
       </div>
-      <div className="mt-3">
+      <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
         <SummaryTile label="Margen Estimado" value={fmtPercent(s.porcMargenEstimado)} icon="percent" color="primary" />
+        <SummaryTile label="Porcentaje Relativo" value={fmtPercent(s.porcentajeRelativo)} icon="pie_chart" color="secondary" />
       </div>
 
       {chartData.length > 0 && (
@@ -101,10 +100,7 @@ function Content({ s }: { s: VentaSucursalSummary }) {
       )}
 
       <div className="mt-6">
-        <button
-          type="button"
-          onClick={() => setExpanded(v => !v)}
-          className="w-full card flex items-center px-4 py-3.5 text-left">
+        <button type="button" onClick={() => setExpanded(v => !v)} className="w-full card flex items-center px-4 py-3.5 text-left">
           <EyebrowLabel>Detalle Diario</EyebrowLabel>
           <span className="ml-2 text-xs text-ink-variant">{sortedDaily.length} registros</span>
           <span className="ml-auto">
@@ -132,6 +128,7 @@ function DailyVentaCard({ item }: { item: RptVenta }) {
         <Row label="Ticket Promedio" value={fmtMoney(item.ticketPromedio ?? 0)} />
         <Row label="Total Costo" value={fmtMoney(item.totalCosto ?? 0)} />
         <Row label="Margen Estimado" value={fmtPercent(item.porcMargenEstimado ?? 0)} />
+        <Row label="Porcentaje Relativo" value={fmtPercent(item.porcentajeRelativo ?? 0)} />
         <Row label="Facturas" value={fmtInt(item.cantidadFacturas ?? 0)} />
       </div>
     </div>
