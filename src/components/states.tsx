@@ -36,7 +36,7 @@ const VARIANT_ICON: Record<ErrorVariant, IconName> = {
 };
 
 const VARIANT_TITLE: Record<ErrorVariant, string> = {
-  network: 'API no disponible',
+  network: 'Error al cargar datos',
   session: 'Sesión expirada',
   server: 'Algo salió mal',
   empty: 'Sin datos para mostrar'

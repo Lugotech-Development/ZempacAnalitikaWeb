@@ -66,7 +66,14 @@ export default function CuadreCajaPage() {
 
   return (
     <>
-      <PageHeader eyebrow="Reporte" title="Cuadre de Caja" subtitle="Conciliación diaria por almacén" icon="point_of_sale" isRefreshing={cuadreQ.isValidating && cuadreQ.status === 'success'} />
+      <PageHeader
+        eyebrow="Reporte"
+        title="Cuadre de Caja"
+        subtitle="Conciliación diaria por almacén"
+        icon="point_of_sale"
+        isRefreshing={cuadreQ.isValidating && cuadreQ.status === 'success'}
+        onRefresh={cuadreQ.reload}
+      />
 
       {sucursalesQ.status === 'loading' && <LoadingState />}
       {sucursalesQ.status === 'error' && <ErrorState variant={sucursalesQ.errorVariant} message={sucursalesQ.error} onRetry={sucursalesQ.reload} />}

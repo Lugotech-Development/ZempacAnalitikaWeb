@@ -13,7 +13,14 @@ export default function PrincipalPage() {
 
   return (
     <>
-      <PageHeader eyebrow="Resumen Ejecutivo" title="Pantalla Principal" subtitle="Mes actual vs mes anterior" icon="grid_view" isRefreshing={isValidating && status === 'success'} />
+      <PageHeader
+        eyebrow="Resumen Ejecutivo"
+        title="Pantalla Principal"
+        subtitle="Mes actual vs mes anterior"
+        icon="grid_view"
+        isRefreshing={isValidating && status === 'success'}
+        onRefresh={reload}
+      />
 
       {status === 'loading' && <LoadingState />}
       {status === 'error' && <ErrorState variant={errorVariant} message={error} onRetry={reload} />}

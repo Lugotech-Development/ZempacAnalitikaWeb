@@ -1,0 +1,418 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Distribución de Ventas – Diseño Final</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&display=swap" rel="stylesheet" />
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      body {
+        font-family: 'Manrope', sans-serif;
+        background: #f8f9fa;
+        color: #191c1d;
+        padding: 40px 24px;
+        max-width: 720px;
+        margin: 0 auto;
+      }
+      h1 {
+        font-size: 22px;
+        font-weight: 800;
+        letter-spacing: -0.02em;
+        margin-bottom: 6px;
+      }
+      .subtitle {
+        font-size: 13px;
+        color: #747688;
+        margin-bottom: 36px;
+        line-height: 1.5;
+      }
+
+      .card {
+        background: #fff;
+        border-radius: 20px;
+        box-shadow: 0 4px 24px rgba(25, 28, 29, 0.06);
+        padding: 28px 24px;
+      }
+      .eyebrow {
+        font-size: 11px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: #747688;
+      }
+      .chart-desc {
+        font-size: 12px;
+        color: #434656;
+        margin-top: 4px;
+        margin-bottom: 16px;
+      }
+      .total-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        border-radius: 999px;
+        background: rgba(0, 64, 223, 0.06);
+        padding: 6px 14px;
+        margin-bottom: 20px;
+        font-size: 11px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: #0040df;
+      }
+
+      /* Bar structure */
+      .bar-row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 7px 0;
+      }
+      .bar-label {
+        width: 150px;
+        flex-shrink: 0;
+        text-align: right;
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 6px;
+      }
+      .bar-label .name {
+        font-size: 12px;
+        font-weight: 600;
+        color: #191c1d;
+      }
+      .bar-label .amount {
+        font-size: 10px;
+        color: #747688;
+        margin-top: 1px;
+      }
+      .bar-label .label-text {
+        text-align: right;
+      }
+      .bar-container {
+        flex: 1;
+        position: relative;
+        padding-right: 52px;
+      }
+      .bar-track {
+        height: 24px;
+        border-radius: 0 6px 6px 0;
+      }
+      .bar-fill {
+        height: 100%;
+        border-radius: 0 6px 6px 0;
+      }
+      .bar-value {
+        position: absolute;
+        right: 0;
+        top: 50%;
+        transform: translateY(-50%);
+        font-size: 12px;
+        font-weight: 700;
+        color: #191c1d;
+        width: 44px;
+      }
+
+      /* Top 3 style */
+      .bar-row.top .bar-fill {
+        background: #0040df;
+      }
+      .bar-row.top .bar-label .name {
+        color: #0040df;
+        font-weight: 700;
+      }
+      .rank-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 18px;
+        height: 18px;
+        border-radius: 6px;
+        font-size: 9px;
+        font-weight: 800;
+        flex-shrink: 0;
+      }
+      .rank-badge.gold {
+        background: #fff3e0;
+        color: #e65100;
+      }
+      .rank-badge.silver {
+        background: #f3f4f5;
+        color: #434656;
+      }
+      .rank-badge.bronze {
+        background: #fbe9e7;
+        color: #bf360c;
+      }
+
+      /* Middle style */
+      .bar-row.mid .bar-fill {
+        background: #0040df;
+        opacity: 0.35;
+      }
+
+      /* Bottom 3 style */
+      .bar-row.bottom .bar-fill {
+        background: #993100;
+        opacity: 0.7;
+      }
+      .bar-row.bottom .bar-label .name {
+        color: #993100;
+        font-weight: 700;
+      }
+      .rank-badge.warn {
+        background: #ffebee;
+        color: #c62828;
+      }
+
+      /* Average divider line */
+      .avg-line {
+        position: relative;
+        margin: 8px 0 8px 162px;
+        border-top: 2px dashed #0040df;
+      }
+      .avg-label {
+        position: absolute;
+        right: 52px;
+        top: -10px;
+        font-size: 9px;
+        font-weight: 700;
+        color: #0040df;
+        background: #fff;
+        padding: 0 6px;
+      }
+
+      /* Pareto 80/20 divider line */
+      .pareto-line {
+        position: relative;
+        margin: 8px 0 8px 162px;
+        border-top: 2px dashed #137333;
+      }
+      .pareto-label {
+        position: absolute;
+        right: 52px;
+        top: -10px;
+        font-size: 9px;
+        font-weight: 700;
+        color: #137333;
+        background: #fff;
+        padding: 0 6px;
+      }
+
+      /* 80/20 summary chips */
+      .summary-row {
+        display: flex;
+        gap: 12px;
+        margin-top: 20px;
+        padding-top: 16px;
+        border-top: 1px solid #edeeef;
+      }
+      .summary-chip {
+        flex: 1;
+        padding: 12px 16px;
+        border-radius: 12px;
+      }
+      .summary-chip.chip-80 {
+        background: rgba(0, 64, 223, 0.06);
+      }
+      .summary-chip.chip-20 {
+        background: #fbe9e7;
+      }
+      .chip-label {
+        font-size: 10px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: #747688;
+      }
+      .chip-value {
+        font-size: 18px;
+        font-weight: 800;
+        margin-top: 3px;
+        font-variant-numeric: tabular-nums;
+      }
+      .chip-80 .chip-value {
+        color: #0040df;
+      }
+      .chip-20 .chip-value {
+        color: #993100;
+      }
+      .chip-detail {
+        font-size: 11px;
+        color: #434656;
+        margin-top: 2px;
+      }
+
+      .note {
+        margin-top: 32px;
+        padding: 14px 16px;
+        background: #f3f4f5;
+        border-radius: 12px;
+        font-size: 12px;
+        color: #434656;
+        line-height: 1.6;
+      }
+      .note strong {
+        color: #191c1d;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Distribución de Ventas — Diseño Final</h1>
+    <p class="subtitle">Top 3 en azul con badges · Bottom 3 en terracota · Línea de promedio · Línea de corte Pareto 80/20 · Resumen al pie</p>
+
+    <div class="card">
+      <span class="eyebrow">Distribución de Ventas</span>
+      <p class="chart-desc">Participación de cada sucursal en el total de ventas</p>
+      <div class="total-badge">Total: $1,842,500.00 = 100%</div>
+
+      <!-- ─── Top 3 ─── -->
+      <div class="bar-row top">
+        <div class="bar-label">
+          <div class="label-text">
+            <span class="name">Tegucigalpa Centro</span>
+            <div class="amount">$553,200</div>
+          </div>
+          <span class="rank-badge gold">1</span>
+        </div>
+        <div class="bar-container">
+          <div class="bar-track"><div class="bar-fill" style="width: 80%"></div></div>
+          <span class="bar-value">30.0%</span>
+        </div>
+      </div>
+
+      <div class="bar-row top">
+        <div class="bar-label">
+          <div class="label-text">
+            <span class="name">San Pedro Sula</span>
+            <div class="amount">$442,600</div>
+          </div>
+          <span class="rank-badge silver">2</span>
+        </div>
+        <div class="bar-container">
+          <div class="bar-track"><div class="bar-fill" style="width: 64%"></div></div>
+          <span class="bar-value">24.0%</span>
+        </div>
+      </div>
+
+      <div class="bar-row top">
+        <div class="bar-label">
+          <div class="label-text">
+            <span class="name">La Ceiba</span>
+            <div class="amount">$295,200</div>
+          </div>
+          <span class="rank-badge bronze">3</span>
+        </div>
+        <div class="bar-container">
+          <div class="bar-track"><div class="bar-fill" style="width: 42.6%"></div></div>
+          <span class="bar-value">16.0%</span>
+        </div>
+      </div>
+
+      <!-- ─── Average line ─── -->
+      <div class="avg-line"><span class="avg-label">Promedio: 12.5%</span></div>
+
+      <!-- ─── Middle ─── -->
+      <div class="bar-row mid">
+        <div class="bar-label">
+          <div class="label-text">
+            <span class="name">Comayagua</span>
+            <div class="amount">$202,675</div>
+          </div>
+        </div>
+        <div class="bar-container">
+          <div class="bar-track"><div class="bar-fill" style="width: 29.3%"></div></div>
+          <span class="bar-value">11.0%</span>
+        </div>
+      </div>
+
+      <!-- ─── Pareto 80/20 line ─── -->
+      <div class="pareto-line"><span class="pareto-label">Corte 80/20: 4 sucursales = 81%</span></div>
+
+      <div class="bar-row mid">
+        <div class="bar-label">
+          <div class="label-text">
+            <span class="name">Choluteca</span>
+            <div class="amount">$147,400</div>
+          </div>
+        </div>
+        <div class="bar-container">
+          <div class="bar-track"><div class="bar-fill" style="width: 21.3%"></div></div>
+          <span class="bar-value">8.0%</span>
+        </div>
+      </div>
+
+      <!-- ─── Bottom 3 ─── -->
+      <div class="bar-row bottom">
+        <div class="bar-label">
+          <div class="label-text">
+            <span class="name">Danlí</span>
+            <div class="amount">$92,125</div>
+          </div>
+          <span class="rank-badge warn">6</span>
+        </div>
+        <div class="bar-container">
+          <div class="bar-track"><div class="bar-fill" style="width: 13.3%"></div></div>
+          <span class="bar-value">5.0%</span>
+        </div>
+      </div>
+
+      <div class="bar-row bottom">
+        <div class="bar-label">
+          <div class="label-text">
+            <span class="name">Juticalpa</span>
+            <div class="amount">$73,700</div>
+          </div>
+          <span class="rank-badge warn">7</span>
+        </div>
+        <div class="bar-container">
+          <div class="bar-track"><div class="bar-fill" style="width: 10.6%"></div></div>
+          <span class="bar-value">4.0%</span>
+        </div>
+      </div>
+
+      <div class="bar-row bottom">
+        <div class="bar-label">
+          <div class="label-text">
+            <span class="name">Santa Rosa</span>
+            <div class="amount">$35,600</div>
+          </div>
+          <span class="rank-badge warn">8</span>
+        </div>
+        <div class="bar-container">
+          <div class="bar-track"><div class="bar-fill" style="width: 5.1%"></div></div>
+          <span class="bar-value">2.0%</span>
+        </div>
+      </div>
+
+      <!-- ─── 80/20 Summary ─── -->
+      <div class="summary-row">
+        <div class="summary-chip chip-80">
+          <div class="chip-label">Generan el 80% de ventas</div>
+          <div class="chip-value">4 sucursales</div>
+          <div class="chip-detail">81% del total acumulado</div>
+        </div>
+        <div class="summary-chip chip-20">
+          <div class="chip-label">Generan el 20% restante</div>
+          <div class="chip-value">4 sucursales</div>
+          <div class="chip-detail">19% del total acumulado</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="note">
+      <strong>Cómo se leen las dos líneas:</strong><br />
+      • <span style="color: #0040df; font-weight: 700">Línea azul (Promedio)</span> — Referencia estadística pura: 100% ÷ 8 sucursales = 12.5%. Ayuda a ver quién está arriba/debajo del reparto
+      equitativo.<br />
+      • <span style="color: #137333; font-weight: 700">Línea verde (Corte 80/20)</span> — Principio de Pareto: se acumulan los % de arriba hacia abajo hasta superar ≈80%. En este ejemplo 30+24+16+11 =
+      81%, así que 4 sucursales concentran la mayoría. Las 4 restantes suman solo 19%.
+    </div>
+  </body>
+</html>

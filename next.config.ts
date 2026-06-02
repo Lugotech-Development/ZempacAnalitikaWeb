@@ -1,26 +1,28 @@
-import type { NextConfig } from "next";
+import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
+  output: 'export',
+  images: { unoptimized: true },
   reactStrictMode: true,
   // SVGR — import .svg files as React components.
   // Configured for both Turbopack (dev + prod build in Next 16) and webpack
   // (used if someone falls back to non-turbopack builds).
   turbopack: {
     rules: {
-      "*.svg": {
+      '*.svg': {
         loaders: [
           {
-            loader: "@svgr/webpack",
+            loader: '@svgr/webpack',
             options: {
               svgo: true,
               titleProp: false,
-              svgProps: { fill: "currentColor" },
-            },
-          },
+              svgProps: { fill: 'currentColor' }
+            }
+          }
         ],
-        as: "*.js",
-      },
-    },
+        as: '*.js'
+      }
+    }
   },
   webpack(config) {
     config.module.rules.push({
@@ -28,17 +30,17 @@ const nextConfig: NextConfig = {
       issuer: /\.[jt]sx?$/,
       use: [
         {
-          loader: "@svgr/webpack",
+          loader: '@svgr/webpack',
           options: {
             svgo: true,
             titleProp: false,
-            svgProps: { fill: "currentColor" },
-          },
-        },
-      ],
+            svgProps: { fill: 'currentColor' }
+          }
+        }
+      ]
     });
     return config;
-  },
+  }
 };
 
 export default nextConfig;

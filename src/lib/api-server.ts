@@ -7,7 +7,7 @@
 
 import { cookies } from 'next/headers';
 
-export const UPSTREAM_HOST = process.env.UPSTREAM_API_HOST ?? 'https://reporteszempacapi.azurewebsites.net';
+export const UPSTREAM_HOST = process.env.UPSTREAM_API_HOST ?? process.env.NEXT_PUBLIC_UPSTREAM_API_HOST ?? 'https://reporteszempacapi.azurewebsites.net';
 
 export const COOKIE = {
   token: 'zempac_token',

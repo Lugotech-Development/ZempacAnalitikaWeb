@@ -23,7 +23,14 @@ function ProductosInner() {
 
   return (
     <>
-      <PageHeader eyebrow="Productos" title="Más Vendidos" subtitle="Ranking del periodo con margen, facturas y costo" icon="shopping_bag" isRefreshing={isValidating && status === 'success'} />
+      <PageHeader
+        eyebrow="Productos"
+        title="Más Vendidos"
+        subtitle="Ranking del periodo con margen, facturas y costo"
+        icon="shopping_bag"
+        isRefreshing={isValidating && status === 'success'}
+        onRefresh={reload}
+      />
 
       {status === 'loading' && <LoadingState />}
       {status === 'error' && <ErrorState variant={errorVariant} message={error} onRetry={reload} />}

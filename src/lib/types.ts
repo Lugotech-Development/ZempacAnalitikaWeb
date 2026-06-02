@@ -60,6 +60,7 @@ export type RptVenta = {
   ticketPromedio: number | null;
   totalCosto: number | null;
   porcMargenEstimado: number | null;
+  porcentajeRelativo: number | null;
 };
 
 export type RptDevolucion = {
@@ -97,6 +98,60 @@ export type RptCuadreCajaLinea = {
   grupo: number | null;
   cajaInicial: number | null;
   fechaImpresion: string | null;
+};
+
+// ─── Cuentas por Cobrar (CxC) ───────────────────────────────────────────
+// Field names mirror the live API response (PascalCase). The OpenAPI doc
+// only declares responses as `array of object` with no schema, so these
+// shapes were derived by hitting the live endpoint.
+
+export type RptCxcResumen = {
+  saldoTotal: number;
+  /** Not returned by the API — computed from antiguedad.corriente on the page. */
+  saldoCorriente: number;
+  /** Not returned by the API — computed as saldoTotal - saldoCorriente. */
+  saldoVencido: number;
+  porcentajeVencido: number;
+  clientesConSaldo: number;
+  facturasPendientes: number;
+};
+
+/** `/cxc/antiguedad` returns a single wide row with 4 buckets (no 1-30). */
+export type RptCxcAntiguedad = {
+  corriente: number;
+  de31a60: number;
+  de61a90: number;
+  mayor90: number;
+};
+
+export type RptCxcTopCliente = {
+  clienteCodigo: string;
+  clienteNombre: string;
+  saldoTotal: number;
+  corriente: number;
+  vencido: number;
+  totalFacturas: number;
+  ultimaFacturaFecha: string | null;
+  diasMaxAtraso: number;
+  categoria: string | null;
+};
+
+export type RptCxcDetalleFactura = {
+  clienteCodigo: string;
+  clienteNombre: string;
+  facturaNumero: string;
+  facturaClienteCodigo: string | null;
+  facturaFecha: string | null;
+  fecha: string | null;
+  balance: number;
+  diasAtraso: number;
+  categoria: string | null;
+};
+
+export type RptCuentasPorCobrar = {
+  resumen: RptCxcResumen;
+  antiguedad: RptCxcAntiguedad;
+  topClientes: RptCxcTopCliente[];
 };
 
 export type SessionInfo = {
@@ -175,7 +230,8 @@ export const parseVenta = (j: J): RptVenta => ({
   totalPagado: num(j.TotalPagado),
   ticketPromedio: num(j.TicketPromedio),
   totalCosto: num(j.TotalCosto),
-  porcMargenEstimado: num(j.PorcMargenEstimado)
+  porcMargenEstimado: num(j.PorcMargenEstimado),
+  porcentajeRelativo: num(j.PorcentajeRelativo)
 });
 
 export const parseDevolucion = (j: J): RptDevolucion => ({
@@ -215,6 +271,73 @@ export const parseCuadreLinea = (j: J): RptCuadreCajaLinea => ({
   fechaImpresion: str(j.FechaImpresion)
 });
 
+// ─── CxC parsers (tolerant of PascalCase / camelCase / common aliases) ──
+
+/** Pick the first non-null/undefined value among the given keys. */
+const pick = (j: J, ...keys: string[]): unknown => {
+  for (const k of keys) {
+    const v = j[k];
+    if (v !== undefined && v !== null && v !== '') return v;
+  }
+  return undefined;
+};
+
+const numAny = (j: J, ...keys: string[]): number => num(pick(j, ...keys)) ?? 0;
+const strAny = (j: J, ...keys: string[]): string | null => str(pick(j, ...keys));
+
+export const parseCxcResumen = (j: J): RptCxcResumen => {
+  const saldoTotal = numAny(j, 'SaldoTotal', 'saldoTotal', 'Saldo', 'TotalSaldo', 'MontoTotal');
+  // API doesn't return SaldoCorriente; aliases kept for forward compat.
+  const saldoCorriente = numAny(j, 'SaldoCorriente', 'saldoCorriente', 'Corriente', 'TotalCorriente');
+  let saldoVencido = numAny(j, 'SaldoVencido', 'saldoVencido', 'Vencido', 'TotalVencido');
+  if (saldoVencido === 0 && saldoTotal > 0 && saldoCorriente > 0) {
+    saldoVencido = Math.max(0, saldoTotal - saldoCorriente);
+  }
+  let porcentajeVencido = numAny(j, 'PorcentajeVencido', 'porcentajeVencido', 'PorcVencido', 'PctVencido');
+  if (porcentajeVencido === 0 && saldoTotal > 0 && saldoVencido > 0) {
+    porcentajeVencido = (saldoVencido / saldoTotal) * 100;
+  }
+  return {
+    saldoTotal,
+    saldoCorriente,
+    saldoVencido,
+    porcentajeVencido,
+    clientesConSaldo: numAny(j, 'TotalClientes', 'ClientesConSaldo', 'clientesConSaldo', 'Clientes', 'CantidadClientes'),
+    facturasPendientes: numAny(j, 'FacturasPendientes', 'facturasPendientes', 'TotalFacturas', 'Facturas', 'CantidadFacturas', 'FacturasAbiertas')
+  };
+};
+
+export const parseCxcAntiguedad = (j: J): RptCxcAntiguedad => ({
+  corriente: numAny(j, 'Corriente', 'corriente', 'AlDia', 'Vigente'),
+  de31a60: numAny(j, 'De31a60', 'de31a60', 'Rango31_60', 'Saldo31a60', 'D31a60'),
+  de61a90: numAny(j, 'De61a90', 'de61a90', 'Rango61_90', 'Saldo61a90', 'D61a90'),
+  mayor90: numAny(j, 'Mayor90', 'mayor90', 'Mas90', 'Mayor90Dias', 'SaldoMas90')
+});
+
+export const parseCxcTopCliente = (j: J): RptCxcTopCliente => ({
+  clienteCodigo: strAny(j, 'ClienteCodigo', 'clienteCodigo', 'Cliente', 'Codigo') ?? '',
+  clienteNombre: strAny(j, 'ClienteNombre', 'clienteNombre', 'Nombre', 'NombreCliente') ?? '',
+  saldoTotal: numAny(j, 'SaldoTotal', 'saldoTotal', 'Saldo', 'Total'),
+  corriente: numAny(j, 'Corriente', 'corriente', 'SaldoCorriente', 'AlDia'),
+  vencido: numAny(j, 'Vencido', 'vencido', 'SaldoVencido', 'TotalVencido'),
+  totalFacturas: numAny(j, 'TotalFacturas', 'totalFacturas', 'FacturasPendientes', 'Facturas', 'CantidadFacturas'),
+  ultimaFacturaFecha: strAny(j, 'UltimaFacturaFecha', 'ultimaFacturaFecha', 'UltimaFactura', 'FechaUltimaFactura'),
+  diasMaxAtraso: numAny(j, 'DiasMaxAtraso', 'diasMaxAtraso', 'MaxDiasAtraso', 'DiasAtraso'),
+  categoria: strAny(j, 'Categoria', 'categoria', 'Rango', 'Bucket')
+});
+
+export const parseCxcDetalleFactura = (j: J): RptCxcDetalleFactura => ({
+  clienteCodigo: strAny(j, 'ClienteCodigo', 'clienteCodigo', 'Cliente') ?? '',
+  clienteNombre: strAny(j, 'ClienteNombre', 'clienteNombre', 'Nombre') ?? '',
+  facturaNumero: strAny(j, 'FacturaNumero', 'facturaNumero', 'Factura', 'NumeroFactura', 'Documento') ?? '',
+  facturaClienteCodigo: strAny(j, 'FacturaClienteCodigo', 'facturaClienteCodigo'),
+  facturaFecha: strAny(j, 'FacturaFecha', 'facturaFecha', 'FechaFactura'),
+  fecha: strAny(j, 'Fecha', 'fecha', 'FechaEmision'),
+  balance: numAny(j, 'Balance', 'balance', 'Saldo', 'SaldoPendiente', 'Monto'),
+  diasAtraso: numAny(j, 'DiasAtraso', 'diasAtraso', 'DiasVencidos', 'DiasMora'),
+  categoria: strAny(j, 'Categoria', 'categoria', 'Rango', 'Bucket')
+});
+
 // ─── Cuadre helpers (mirror lib/models/rpt_cuadre_caja.dart getters) ────
 
 export const cuadreCleanDesc = (l: RptCuadreCajaLinea): string => (l.descripcion ?? '').trimStart();
@@ -241,6 +364,7 @@ export type VentaSucursalSummary = {
   ticketPromedio: number;
   totalCosto: number;
   porcMargenEstimado: number;
+  porcentajeRelativo: number;
   dailyItems: RptVenta[];
 };
 
@@ -272,6 +396,7 @@ export function groupVentasBySucursal(items: RptVenta[]): VentaSucursalSummary[]
       ticketPromedio: cantidadFacturas > 0 ? totalVendido / cantidadFacturas : 0,
       totalCosto: sum('totalCosto'),
       porcMargenEstimado,
+      porcentajeRelativo: sum('porcentajeRelativo'),
       dailyItems: rows
     });
   }
