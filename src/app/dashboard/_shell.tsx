@@ -31,7 +31,7 @@ const NAV: { href: string; label: string; icon: IconName }[] = [
     icon: 'point_of_sale'
   },
   { href: '/dashboard/ventas-producto-marca', label: 'Ventas por Marca', icon: 'sell' },
-  { href: '/dashboard/ventas-facturador', label: 'Ventas por Facturador', icon: 'badge' },
+  { href: '/dashboard/ventas-facturador', label: 'Ventas por Facturador', icon: 'badge' }
 ];
 
 export default function DashboardShell({ children, session }: { children: React.ReactNode; session: SessionInfo }) {
