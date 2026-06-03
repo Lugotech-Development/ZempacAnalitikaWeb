@@ -29,7 +29,9 @@ const NAV: { href: string; label: string; icon: IconName }[] = [
     href: '/dashboard/cuadre-caja',
     label: 'Cuadre de Caja',
     icon: 'point_of_sale'
-  }
+  },
+  { href: '/dashboard/ventas-producto-marca', label: 'Ventas por Marca', icon: 'sell' },
+  { href: '/dashboard/ventas-facturador', label: 'Ventas por Facturador', icon: 'badge' }
 ];
 
 export default function DashboardShell({ children, session }: { children: React.ReactNode; session: SessionInfo }) {
@@ -103,7 +105,7 @@ function NavList({ pathname, onClick }: { pathname: string; onClick?: () => void
   return (
     <ul className="px-3 space-y-1">
       {NAV.map(({ href, label, icon }) => {
-        const active = href === '/dashboard' ? pathname === '/dashboard' : pathname.startsWith(href);
+        const active = href === '/dashboard' ? pathname === '/dashboard' : pathname === href || pathname.startsWith(href + '/');
         return (
           <li key={href}>
             <Link
