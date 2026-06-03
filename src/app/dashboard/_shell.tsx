@@ -1,5 +1,7 @@
 'use client';
 
+const APP_VERSION = '1.7.1';
+
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useState } from 'react';
@@ -56,7 +58,8 @@ export default function DashboardShell({ children, session }: { children: React.
               </button>
             </div>
             <NavList pathname={pathname} onClick={() => setMobileOpen(false)} />
-            <button onClick={logout} className="mx-3 mt-4 flex w-[calc(100%-1.5rem)] items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-tertiary hover:bg-tertiary/5">
+            <p className="mx-6 mt-4 text-xs font-medium text-outline">v{APP_VERSION}</p>
+            <button onClick={logout} className="mx-3 mt-2 flex w-[calc(100%-1.5rem)] items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-tertiary hover:bg-tertiary/5">
               <Icon name="logout" size={16} />
               Cerrar sesión
             </button>
@@ -85,6 +88,7 @@ function Sidebar({ pathname, session, onLogout }: { pathname: string; session: S
       <nav className="mt-6 flex-1 overflow-y-auto zsb-scroll">
         <NavList pathname={pathname} />
       </nav>
+      <p className="px-5 pb-3 text-xs font-medium text-outline">v{APP_VERSION}</p>
       <div className="p-3 border-t border-surface-mid">
         <button onClick={onLogout} className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-tertiary hover:bg-tertiary/5">
           <Icon name="logout" size={16} />
