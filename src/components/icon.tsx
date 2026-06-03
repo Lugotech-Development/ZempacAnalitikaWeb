@@ -26,6 +26,7 @@ import ArrowDownward from '@material-symbols/svg-400/outlined/arrow_downward.svg
 import CallMade from '@material-symbols/svg-400/outlined/call_made.svg';
 import CallReceived from '@material-symbols/svg-400/outlined/call_received.svg';
 import Apartment from '@material-symbols/svg-400/outlined/apartment.svg';
+import Badge from '@material-symbols/svg-400/outlined/badge.svg';
 import Edit from '@material-symbols/svg-400/outlined/edit.svg';
 import Visibility from '@material-symbols/svg-400/outlined/visibility.svg';
 import VisibilityOff from '@material-symbols/svg-400/outlined/visibility_off.svg';
@@ -96,6 +97,7 @@ const REGISTRY = {
   call_made: CallMade,
   call_received: CallReceived,
   apartment: Apartment,
+  badge: Badge,
   edit: Edit,
   visibility: Visibility,
   visibility_off: VisibilityOff,

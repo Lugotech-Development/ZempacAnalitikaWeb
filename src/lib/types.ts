@@ -448,3 +448,67 @@ export function groupDevolucionesBySucursal(items: RptDevolucion[]): DevolucionS
   out.sort((a, b) => b.totalDevuelto - a.totalDevuelto);
   return out;
 }
+
+// ─── Ventas por Marca ────────────────────────────────────────────────────────
+
+export type RptVentaProductoMarca = {
+  marca: string | null;
+  marcaId: number | null;
+  sucursal: string | null;
+  sucursalId: number | null;
+  producto: string | null;
+  codigoProducto: string | null;
+  cantidad: number | null;
+  totalVenta: number | null;
+};
+
+export function parseVentaProductoMarca(j: J): RptVentaProductoMarca {
+  return {
+    marca: str(j['Marca']) ?? str(j['marca']),
+    marcaId: num(j['CodigoMarca']) ?? num(j['codigoMarca']),
+    sucursal: str(j['Sucursal']) ?? str(j['sucursal']),
+    sucursalId: num(j['CodigoSucursal']) ?? num(j['codigoSucursal']),
+    producto: str(j['Producto']) ?? str(j['producto']),
+    codigoProducto: str(j['CodigoProducto']) ?? str(j['codigoProducto']),
+    cantidad: num(j['Unidades']) ?? num(j['unidades']) ?? num(j['Cantidad']) ?? num(j['cantidad']),
+    totalVenta: num(j['Importe']) ?? num(j['importe']) ?? num(j['TotalVenta']) ?? num(j['totalVenta']),
+  };
+}
+
+// ─── Ventas por Facturador ───────────────────────────────────────────────────
+
+export type RptVentaFacturador = {
+  sucursal: string | null;
+  sucursalId: number | null;
+  codigoFacturador: number | null;
+  facturador: string | null;
+  cedula: string | null;
+  cantidadFacturas: number | null;
+  totalVenta: number | null;
+};
+
+export function parseVentaFacturador(j: J): RptVentaFacturador {
+  return {
+    sucursal: str(j['NombreSucursal']) ?? str(j['sucursal']),
+    sucursalId: num(j['CodigoSucursal']) ?? num(j['sucursalId']),
+    codigoFacturador: num(j['CodigoFacturador']) ?? num(j['codigoFacturador']),
+    facturador: str(j['NombreFacturador']) ?? str(j['facturador']),
+    cedula: str(j['Cedula']) ?? str(j['cedula']),
+    cantidadFacturas: num(j['CantidadFacturas']) ?? num(j['cantidadFacturas']),
+    totalVenta: num(j['TotalFacturado']) ?? num(j['totalFacturado']) ?? num(j['TotalVenta']) ?? num(j['totalVenta']),
+  };
+}
+
+// ─── Catálogo de Marcas ──────────────────────────────────────────────────────
+
+export type Marca = {
+  id: number | null;
+  nombre: string | null;
+};
+
+export function parseMarca(j: J): Marca {
+  return {
+    id: num(j['CodigoMarca']) ?? num(j['codigoMarca']) ?? num(j['Id']) ?? num(j['id']),
+    nombre: str(j['NombreMarca']) ?? str(j['nombreMarca']) ?? str(j['Marca']) ?? str(j['marca']) ?? str(j['Nombre']) ?? str(j['nombre']),
+  };
+}

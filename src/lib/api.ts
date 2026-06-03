@@ -2,7 +2,7 @@
 // Auth tokens are stored in localStorage. On 401 we attempt a silent refresh;
 // if that fails we throw UnauthorizedError so the UI redirects to /login.
 
-import type { RptCuadreCajaLinea, RptCuentasPorCobrar, RptCxcDetalleFactura, RptDevolucion, RptPantallaPrincipal, RptProductoMasVendido, RptVenta, SessionInfo, Sucursal } from './types';
+import type { Marca, RptCuadreCajaLinea, RptCuentasPorCobrar, RptCxcDetalleFactura, RptDevolucion, RptPantallaPrincipal, RptProductoMasVendido, RptVenta, RptVentaFacturador, RptVentaProductoMarca, SessionInfo, Sucursal } from './types';
 import {
   parseCuadreLinea,
   parseCxcAntiguedad,
@@ -13,7 +13,10 @@ import {
   parsePantallaPrincipal,
   parseProducto,
   parseSucursal,
-  parseVenta
+  parseVenta,
+  parseVentaFacturador,
+  parseMarca,
+  parseVentaProductoMarca
 } from './types';
 
 const UPSTREAM = process.env.NEXT_PUBLIC_UPSTREAM_API_HOST ?? 'https://reporteszempacapi.azurewebsites.net';
@@ -319,6 +322,41 @@ export function apiCuentasPorCobrarDetallePaginado(clienteCodigo: string, pagina
       return arr.map((r: unknown) => parseCxcDetalleFactura(r as Record<string, unknown>));
     },
     { clienteCodigo, pagina: String(pagina), porPagina: String(porPagina) }
+  );
+}
+
+// ─── Catálogo de Marcas ─────────────────────────────────────────────────────
+
+export function apiMarcas(nombre?: string): Promise<Marca[]> {
+  const q: Record<string, string | undefined> = { nombre };
+  return getJson<Marca[]>(
+    '/api/reportes/marcas',
+    (data) => (Array.isArray(data) ? data.map(r => parseMarca(r as Record<string, unknown>)) : []),
+    q
+  );
+}
+
+// ─── Ventas por Marca ────────────────────────────────────────────────────────
+
+export function apiVentasProductoMarca(input: { desde: string; hasta: string; marcaId?: number }): Promise<RptVentaProductoMarca[]> {
+  const q: Record<string, string> = { desde: input.desde, hasta: input.hasta };
+  if (input.marcaId != null) q['marcaId'] = String(input.marcaId);
+  return getJson<RptVentaProductoMarca[]>(
+    '/api/Reportes/ventas-producto-marca',
+    (data) => (Array.isArray(data) ? data.map(r => parseVentaProductoMarca(r as Record<string, unknown>)) : []),
+    q
+  );
+}
+
+// ─── Ventas por Facturador ───────────────────────────────────────────────────
+
+export function apiVentasFacturadorSucursal(input: { desde: string; hasta: string; sucursalId?: number }): Promise<RptVentaFacturador[]> {
+  const q: Record<string, string> = { desde: input.desde, hasta: input.hasta };
+  if (input.sucursalId != null) q['sucursalId'] = String(input.sucursalId);
+  return getJson<RptVentaFacturador[]>(
+    '/api/Reportes/ventas-facturador-sucursal',
+    (data) => (Array.isArray(data) ? data.map(r => parseVentaFacturador(r as Record<string, unknown>)) : []),
+    q
   );
 }
 
