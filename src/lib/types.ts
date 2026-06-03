@@ -471,7 +471,7 @@ export function parseVentaProductoMarca(j: J): RptVentaProductoMarca {
     producto: str(j['Producto']) ?? str(j['producto']),
     codigoProducto: str(j['CodigoProducto']) ?? str(j['codigoProducto']),
     cantidad: num(j['Unidades']) ?? num(j['unidades']) ?? num(j['Cantidad']) ?? num(j['cantidad']),
-    totalVenta: num(j['Importe']) ?? num(j['importe']) ?? num(j['TotalVenta']) ?? num(j['totalVenta'])
+    totalVenta: num(j['Importe']) ?? num(j['importe']) ?? num(j['TotalVenta']) ?? num(j['totalVenta']),
   };
 }
 
@@ -495,7 +495,7 @@ export function parseVentaFacturador(j: J): RptVentaFacturador {
     facturador: str(j['NombreFacturador']) ?? str(j['facturador']),
     cedula: str(j['Cedula']) ?? str(j['cedula']),
     cantidadFacturas: num(j['CantidadFacturas']) ?? num(j['cantidadFacturas']),
-    totalVenta: num(j['TotalFacturado']) ?? num(j['totalFacturado']) ?? num(j['TotalVenta']) ?? num(j['totalVenta'])
+    totalVenta: num(j['TotalFacturado']) ?? num(j['totalFacturado']) ?? num(j['TotalVenta']) ?? num(j['totalVenta']),
   };
 }
 
@@ -509,6 +509,6 @@ export type Marca = {
 export function parseMarca(j: J): Marca {
   return {
     id: num(j['CodigoMarca']) ?? num(j['codigoMarca']) ?? num(j['Id']) ?? num(j['id']),
-    nombre: str(j['NombreMarca']) ?? str(j['nombreMarca']) ?? str(j['Marca']) ?? str(j['marca']) ?? str(j['Nombre']) ?? str(j['nombre'])
+    nombre: str(j['NombreMarca']) ?? str(j['nombreMarca']) ?? str(j['Marca']) ?? str(j['marca']) ?? str(j['Nombre']) ?? str(j['nombre']),
   };
 }

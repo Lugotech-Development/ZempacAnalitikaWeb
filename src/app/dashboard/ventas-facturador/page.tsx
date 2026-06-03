@@ -18,7 +18,7 @@ const PRESETS: { id: PresetId; label: string }[] = [
   { id: 'mes', label: 'Este mes' },
   { id: '7d', label: 'Últimos 7 días' },
   { id: '30d', label: 'Últimos 30 días' },
-  { id: 'ayer', label: 'Ayer' }
+  { id: 'ayer', label: 'Ayer' },
 ];
 
 function computeRange(preset: PresetId): { desde: string; hasta: string } {
@@ -63,16 +63,19 @@ export default function VentasFacturadorPage() {
     apiVentasFacturadorSucursal({
       desde: range.desde,
       hasta: range.hasta,
-      sucursalId: sucursalId ?? undefined
+      sucursalId: sucursalId ?? undefined,
     })
   );
 
-  const grandTotal = useMemo(() => (q.data ?? []).reduce((s, r) => s + (r.totalVenta ?? 0), 0), [q.data]);
+  const grandTotal = useMemo(
+    () => (q.data ?? []).reduce((s, r) => s + (r.totalVenta ?? 0), 0),
+    [q.data]
+  );
 
   const chartData = useMemo(() => {
     if (!q.data) return [];
     const sorted = [...q.data].sort((a, b) => (b.totalVenta ?? 0) - (a.totalVenta ?? 0));
-    const slice = sucursalId != null && chartExpanded ? sorted : sorted.slice(0, 10);
+    const slice = (sucursalId != null && chartExpanded) ? sorted : sorted.slice(0, 10);
     return slice.map(r => ({ name: r.facturador ?? '—', total: r.totalVenta ?? 0 }));
   }, [q.data, sucursalId, chartExpanded]);
 
@@ -81,7 +84,10 @@ export default function VentasFacturadorPage() {
     return q.data.length > 10;
   }, [q.data, sucursalId]);
 
-  const sucursalActual: Sucursal | undefined = useMemo(() => sucursalesQ.data?.find(s => s.id === sucursalId), [sucursalesQ.data, sucursalId]);
+  const sucursalActual: Sucursal | undefined = useMemo(
+    () => sucursalesQ.data?.find(s => s.id === sucursalId),
+    [sucursalesQ.data, sucursalId]
+  );
 
   return (
     <>
@@ -95,7 +101,9 @@ export default function VentasFacturadorPage() {
       />
 
       {sucursalesQ.status === 'loading' && <LoadingState />}
-      {sucursalesQ.status === 'error' && <ErrorState variant={sucursalesQ.errorVariant} message={sucursalesQ.error} onRetry={sucursalesQ.reload} />}
+      {sucursalesQ.status === 'error' && (
+        <ErrorState variant={sucursalesQ.errorVariant} message={sucursalesQ.error} onRetry={sucursalesQ.reload} />
+      )}
 
       {sucursalesQ.status === 'success' && (
         <>
@@ -107,9 +115,12 @@ export default function VentasFacturadorPage() {
                 type="button"
                 onClick={() => setSucursalOpen(!sucursalOpen)}
                 onBlur={() => setTimeout(() => setSucursalOpen(false), 120)}
-                className="flex items-center gap-3 rounded-xl border border-surface-mid bg-surface-lowest px-4 py-2.5 text-sm font-bold text-ink min-w-[240px]">
+                className="flex items-center gap-3 rounded-xl border border-surface-mid bg-surface-lowest px-4 py-2.5 text-sm font-bold text-ink min-w-[240px]"
+              >
                 <Icon name="store" size={16} className="text-primary" />
-                <span className="flex-1 text-left truncate">{sucursalActual ? sucursalActual.nombre : 'Todas las sucursales'}</span>
+                <span className="flex-1 text-left truncate">
+                  {sucursalActual ? sucursalActual.nombre : 'Todas las sucursales'}
+                </span>
                 <Icon name="expand_more" size={14} className="text-outline" />
               </button>
               {sucursalOpen && (
@@ -118,11 +129,9 @@ export default function VentasFacturadorPage() {
                   <li>
                     <button
                       type="button"
-                      onMouseDown={() => {
-                        setSucursalId(null);
-                        setSucursalOpen(false);
-                      }}
-                      className={`flex items-center gap-2 w-full px-3 py-2 rounded-lg text-sm font-semibold text-left ${sucursalId == null ? 'bg-primary/10 text-primary' : 'text-ink hover:bg-surface-low'}`}>
+                      onMouseDown={() => { setSucursalId(null); setSucursalOpen(false); }}
+                      className={`flex items-center gap-2 w-full px-3 py-2 rounded-lg text-sm font-semibold text-left ${sucursalId == null ? 'bg-primary/10 text-primary' : 'text-ink hover:bg-surface-low'}`}
+                    >
                       <Icon name="store" size={14} />
                       <span className="flex-1">Todas las sucursales</span>
                       {sucursalId == null && <Icon name="check" size={14} />}
@@ -134,11 +143,9 @@ export default function VentasFacturadorPage() {
                       <li key={s.id}>
                         <button
                           type="button"
-                          onMouseDown={() => {
-                            setSucursalId(s.id);
-                            setSucursalOpen(false);
-                          }}
-                          className={`flex items-center gap-2 w-full px-3 py-2 rounded-lg text-sm font-semibold text-left ${active ? 'bg-primary/10 text-primary' : 'text-ink hover:bg-surface-low'}`}>
+                          onMouseDown={() => { setSucursalId(s.id); setSucursalOpen(false); }}
+                          className={`flex items-center gap-2 w-full px-3 py-2 rounded-lg text-sm font-semibold text-left ${active ? 'bg-primary/10 text-primary' : 'text-ink hover:bg-surface-low'}`}
+                        >
                           <Icon name="store" size={14} />
                           <span className="flex-1 truncate">{s.nombre}</span>
                           {active && <Icon name="check" size={14} />}
@@ -158,8 +165,11 @@ export default function VentasFacturadorPage() {
                   type="button"
                   onClick={() => setPreset(p.id)}
                   className={`whitespace-nowrap rounded-full px-4 py-1.5 text-xs font-bold transition-colors ${
-                    preset === p.id ? 'bg-primary text-white' : 'bg-surface-low text-ink-soft hover:bg-surface-mid'
-                  }`}>
+                    preset === p.id
+                      ? 'bg-primary text-white'
+                      : 'bg-surface-low text-ink-soft hover:bg-surface-mid'
+                  }`}
+                >
                   {p.label}
                 </button>
               ))}
@@ -167,55 +177,68 @@ export default function VentasFacturadorPage() {
           </div>
 
           {q.status === 'loading' && <LoadingState />}
-          {q.status === 'error' && (q.errorVariant === 'session' ? (router.replace('/login'), null) : <ErrorState variant={q.errorVariant!} message={q.error!} onRetry={q.reload} />)}
+          {q.status === 'error' &&
+            (q.errorVariant === 'session'
+              ? (router.replace('/login'), null)
+              : <ErrorState variant={q.errorVariant!} message={q.error!} onRetry={q.reload} />)}
 
           {q.status === 'success' && (
             <>
-              {!q.data || q.data.length === 0 ? (
+              {(!q.data || q.data.length === 0) ? (
                 <EmptyState message="Sin datos para el período seleccionado." />
               ) : (
                 <>
-                  {/* Ranking chart */}
-                  <div className="card p-4 sm:p-5 mb-4">
-                    <p className="eyebrow text-primary mb-4">Ranking</p>
-                    <FacturadorChart data={chartData} />
-                    {chartHasMore && (
-                      <button
-                        type="button"
-                        onClick={() => setChartExpanded(!chartExpanded)}
-                        className="mt-3 flex items-center gap-1 mx-auto text-xs font-semibold text-primary hover:text-primary/80 transition-colors">
-                        <Icon name={chartExpanded ? 'expand_less' : 'expand_more'} size={16} />
-                        <span>{chartExpanded ? 'Ver solo Top 10' : `Ver todos (${q.data!.length})`}</span>
-                      </button>
-                    )}
+                {/* Ranking chart */}
+                <div className="card p-4 sm:p-5 mb-4">
+                  <p className="eyebrow text-primary mb-4">Ranking</p>
+                  <FacturadorChart data={chartData} />
+                  {chartHasMore && (
+                    <button
+                      type="button"
+                      onClick={() => setChartExpanded(!chartExpanded)}
+                      className="mt-3 flex items-center gap-1 mx-auto text-xs font-semibold text-primary hover:text-primary/80 transition-colors"
+                    >
+                      <Icon name={chartExpanded ? 'expand_less' : 'expand_more'} size={16} />
+                      <span>{chartExpanded ? 'Ver solo Top 10' : `Ver todos (${q.data!.length})`}</span>
+                    </button>
+                  )}
+                </div>
+
+                <div className="card overflow-hidden">
+                  {/* Grand total */}
+                  <div className="flex items-center justify-between px-4 py-3 bg-primary/5 border-b border-surface-mid">
+                    <span className="text-sm font-semibold text-ink-soft">Total del período</span>
+                    <span className="text-base font-extrabold text-primary">{fmtMoney(grandTotal)}</span>
                   </div>
 
-                  <div className="card overflow-hidden">
-                    {/* Grand total */}
-                    <div className="flex items-center justify-between px-4 py-3 bg-primary/5 border-b border-surface-mid">
-                      <span className="text-sm font-semibold text-ink-soft">Total del período</span>
-                      <span className="text-base font-extrabold text-primary">{fmtMoney(grandTotal)}</span>
-                    </div>
+                  {/* Column headers */}
+                  <div className="grid grid-cols-[1fr_72px_108px] gap-2 px-4 py-2 text-[11px] font-bold tracking-wide text-outline uppercase border-b border-surface-mid">
+                    <span>Facturador</span>
+                    <span className="text-right">Facturas</span>
+                    <span className="text-right">Total</span>
+                  </div>
 
-                    {/* Column headers */}
-                    <div className="grid grid-cols-[1fr_72px_108px] gap-2 px-4 py-2 text-[11px] font-bold tracking-wide text-outline uppercase border-b border-surface-mid">
-                      <span>Facturador</span>
-                      <span className="text-right">Facturas</span>
-                      <span className="text-right">Total</span>
-                    </div>
-
-                    {/* Rows */}
-                    {q.data.map((row, i) => (
-                      <div key={i} className="grid grid-cols-[1fr_72px_108px] gap-2 px-4 py-3 text-sm border-b border-surface-mid/50 last:border-0">
-                        <div>
-                          <p className="font-semibold text-ink">{row.facturador ?? '—'}</p>
-                          {row.sucursal && <p className="text-[11px] text-outline">{row.sucursal}</p>}
-                        </div>
-                        <span className="text-right text-ink-soft self-center">{row.cantidadFacturas ?? '—'}</span>
-                        <span className="text-right font-bold text-ink self-center">{row.totalVenta != null ? fmtMoney(row.totalVenta) : '—'}</span>
+                  {/* Rows */}
+                  {q.data.map((row, i) => (
+                    <div
+                      key={i}
+                      className="grid grid-cols-[1fr_72px_108px] gap-2 px-4 py-3 text-sm border-b border-surface-mid/50 last:border-0"
+                    >
+                      <div>
+                        <p className="font-semibold text-ink">{row.facturador ?? '—'}</p>
+                        {row.sucursal && (
+                          <p className="text-[11px] text-outline">{row.sucursal}</p>
+                        )}
                       </div>
-                    ))}
-                  </div>
+                      <span className="text-right text-ink-soft self-center">
+                        {row.cantidadFacturas ?? '—'}
+                      </span>
+                      <span className="text-right font-bold text-ink self-center">
+                        {row.totalVenta != null ? fmtMoney(row.totalVenta) : '—'}
+                      </span>
+                    </div>
+                  ))}
+                </div>
                 </>
               )}
             </>
