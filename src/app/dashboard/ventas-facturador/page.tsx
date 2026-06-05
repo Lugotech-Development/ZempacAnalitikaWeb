@@ -11,7 +11,6 @@ import { fmtMoney, toIsoEndOfDay, toIsoStartOfDay } from '@/lib/format';
 import { apiSucursales, apiVentasFacturadorSucursal } from '@/lib/api';
 import { useApi } from '@/lib/use-api';
 import type { RptVentaFacturador, Sucursal } from '@/lib/types';
-import { useRouter } from 'next/navigation';
 
 type PresetId = 'mes' | '7d' | '30d' | 'ayer';
 const PRESETS: { id: PresetId; label: string }[] = [
@@ -44,7 +43,6 @@ function computeRange(preset: PresetId): { desde: string; hasta: string } {
 }
 
 export default function VentasFacturadorPage() {
-  const router = useRouter();
   const sucursalesQ = useApi('sucursales', apiSucursales);
   const [sucursalId, setSucursalId] = useState<number | null>(null); // null = todas
   const [preset, setPreset] = useState<PresetId>('mes');
@@ -177,10 +175,7 @@ export default function VentasFacturadorPage() {
           </div>
 
           {q.status === 'loading' && <LoadingState />}
-          {q.status === 'error' &&
-            (q.errorVariant === 'session'
-              ? (router.replace('/login'), null)
-              : <ErrorState variant={q.errorVariant!} message={q.error!} onRetry={q.reload} />)}
+          {q.status === 'error' && <ErrorState variant={q.errorVariant!} message={q.error!} onRetry={q.reload} />}
 
           {q.status === 'success' && (
             <>
@@ -212,17 +207,18 @@ export default function VentasFacturadorPage() {
                   </div>
 
                   {/* Column headers */}
-                  <div className="grid grid-cols-[1fr_72px_108px] gap-2 px-4 py-2 text-[11px] font-bold tracking-wide text-outline uppercase border-b border-surface-mid">
+                  <div className="grid grid-cols-[1fr_72px_108px_56px] gap-2 px-4 py-2 text-[11px] font-bold tracking-wide text-outline uppercase border-b border-surface-mid">
                     <span>Facturador</span>
                     <span className="text-right">Facturas</span>
                     <span className="text-right">Total</span>
+                    <span className="text-right">%</span>
                   </div>
 
                   {/* Rows */}
                   {q.data.map((row, i) => (
                     <div
                       key={i}
-                      className="grid grid-cols-[1fr_72px_108px] gap-2 px-4 py-3 text-sm border-b border-surface-mid/50 last:border-0"
+                      className="grid grid-cols-[1fr_72px_108px_56px] gap-2 px-4 py-3 text-sm border-b border-surface-mid/50 last:border-0"
                     >
                       <div>
                         <p className="font-semibold text-ink">{row.facturador ?? '—'}</p>
@@ -235,6 +231,13 @@ export default function VentasFacturadorPage() {
                       </span>
                       <span className="text-right font-bold text-ink self-center">
                         {row.totalVenta != null ? fmtMoney(row.totalVenta) : '—'}
+                      </span>
+                      <span className={`text-right font-semibold self-center text-xs ${
+                        i < 3 ? 'text-primary' : i >= q.data!.length - 3 ? 'text-tertiary' : 'text-primary/55'
+                      }`}>
+                        {grandTotal > 0 && row.totalVenta != null
+                          ? `${((row.totalVenta / grandTotal) * 100).toFixed(1)}%`
+                          : '—'}
                       </span>
                     </div>
                   ))}

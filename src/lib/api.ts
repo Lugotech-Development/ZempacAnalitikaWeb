@@ -1,6 +1,7 @@
 // Client-side API layer. Calls the upstream Reportes Zempac API directly.
 // Auth tokens are stored in localStorage. On 401 we attempt a silent refresh;
-// if that fails we throw UnauthorizedError so the UI redirects to /login.
+// if that fails we emit a session-expired event and throw UnauthorizedError.
+import { emitSessionExpired } from './session-events';
 
 import type { Marca, RptCuadreCajaLinea, RptCuentasPorCobrar, RptCxcDetalleFactura, RptDevolucion, RptPantallaPrincipal, RptProductoMasVendido, RptVenta, RptVentaFacturador, RptVentaProductoMarca, SessionInfo, Sucursal } from './types';
 import {
@@ -90,7 +91,8 @@ async function tryRefresh(): Promise<string | null> {
       const res = await fetch(`${UPSTREAM}/api/auth/refresh`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ refreshToken: session.refreshToken })
+        body: JSON.stringify({ refreshToken: session.refreshToken }),
+        signal: AbortSignal.timeout(5000)
       });
       if (!res.ok) return null;
       const body = (await res.json()) as Record<string, unknown>;
@@ -135,6 +137,7 @@ async function authFetch(path: string, init?: RequestInit): Promise<Response> {
     const newToken = await tryRefresh();
     if (!newToken) {
       clearSession();
+      emitSessionExpired();
       throw new UnauthorizedError();
     }
     headers.Authorization = `Bearer ${newToken}`;
@@ -145,6 +148,7 @@ async function authFetch(path: string, init?: RequestInit): Promise<Response> {
     }
     if (res.status === 401) {
       clearSession();
+      emitSessionExpired();
       throw new UnauthorizedError();
     }
   }

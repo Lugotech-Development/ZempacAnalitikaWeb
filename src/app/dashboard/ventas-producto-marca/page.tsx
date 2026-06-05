@@ -7,7 +7,7 @@ import { EmptyState, ErrorState, LoadingState } from '@/components/states';
 import { fmtMoney, toIsoEndOfDay, toIsoStartOfDay } from '@/lib/format';
 import { apiMarcas, apiVentasProductoMarca, classifyError, type ErrorVariant } from '@/lib/api';
 import type { Marca, RptVentaProductoMarca } from '@/lib/types';
-import { useRouter } from 'next/navigation';
+import * as XLSX from 'xlsx';
 
 type PresetId = 'mes' | '7d' | '30d' | 'ayer';
 const PRESETS: { id: PresetId; label: string }[] = [
@@ -40,7 +40,6 @@ function computeRange(preset: PresetId): { desde: string; hasta: string } {
 }
 
 export default function VentasProductoMarcaPage() {
-  const router = useRouter();
   const [preset, setPreset] = useState<PresetId>('mes');
   const range = useMemo(() => computeRange(preset), [preset]);
 
@@ -151,6 +150,21 @@ export default function VentasProductoMarcaPage() {
     [reportData]
   );
 
+  const handleExportExcel = useCallback(() => {
+    if (!reportData || reportData.length === 0) return;
+    const rows = reportData.map(r => ({
+      Marca: r.marca ?? '',
+      Sucursal: r.sucursal ?? '',
+      Producto: r.producto ?? '',
+      Cantidad: r.cantidad ?? 0,
+      Total: r.totalVenta ?? 0,
+    }));
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Ventas por Marca');
+    XLSX.writeFile(wb, 'ventas-por-marca.xlsx');
+  }, [reportData]);
+
   return (
     <>
       <PageHeader
@@ -197,8 +211,8 @@ export default function VentasProductoMarcaPage() {
             </div>
           ) : (
             /* Not ready — input + Todas button */
-            <div className="flex flex-col gap-2">
-              <div className="relative">
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1">
                 <div className="pointer-events-none absolute inset-y-0 left-3 flex items-center">
                   {sugFetching
                     ? <span className="h-4 w-4 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
@@ -220,7 +234,7 @@ export default function VentasProductoMarcaPage() {
               <button
                 type="button"
                 onClick={handleSelectAll}
-                className="flex items-center gap-2 w-full px-4 py-2.5 rounded-xl border border-surface-mid hover:border-primary/40 hover:bg-primary/5 text-sm font-semibold text-ink-soft hover:text-ink transition-colors"
+                className="flex items-center gap-2 shrink-0 px-4 py-2.5 rounded-xl border border-surface-mid hover:border-primary/40 hover:bg-primary/5 text-sm font-semibold text-ink-soft hover:text-ink transition-colors"
               >
                 <Icon name="sell" size={14} className="text-primary shrink-0" />
                 <span>Todas las marcas</span>
@@ -250,8 +264,8 @@ export default function VentasProductoMarcaPage() {
           )}
         </div>
 
-        {/* Preset pills */}
-        <div className="flex items-center gap-2 overflow-x-auto -mx-1 px-1">
+        {/* Preset pills + export */}
+        <div className="flex items-center gap-2 overflow-x-auto -mx-1 px-1 flex-1">
           {PRESETS.map(p => (
             <button
               key={p.id}
@@ -267,14 +281,27 @@ export default function VentasProductoMarcaPage() {
             </button>
           ))}
         </div>
+
+        {/* Export */}
+        {ready && reportData && reportData.length > 0 && (
+          <div className="flex items-center gap-2 shrink-0">
+            <span className="text-xs font-semibold text-outline">Exportar:</span>
+            <button
+              type="button"
+              onClick={handleExportExcel}
+              className="flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1.5 text-xs font-bold text-primary hover:bg-primary/20 transition-colors"
+            >
+              <Icon name="download" size={14} />
+              <span>Excel</span>
+            </button>
+          </div>
+        )}
       </div>
 
       {!ready && <EmptyState message="Selecciona una marca específica o «Todas las marcas» para ver el reporte." />}
       {ready && reportLoading && <LoadingState />}
       {ready && reportError && (
-        reportError.variant === 'session'
-          ? (router.replace('/login'), null)
-          : <ErrorState variant={reportError.variant} message={reportError.message} onRetry={() => loadReport()} />
+        <ErrorState variant={reportError.variant} message={reportError.message} onRetry={() => loadReport()} />
       )}
       {ready && !reportLoading && !reportError && (
         <>
@@ -303,7 +330,8 @@ export default function VentasProductoMarcaPage() {
                       </span>
                     </div>
 
-                    <div className="grid grid-cols-[1fr_72px_96px] gap-2 px-4 py-2 text-[11px] font-bold tracking-wide text-outline uppercase border-b border-surface-mid">
+                    <div className="grid grid-cols-[100px_1fr_72px_96px] gap-2 px-4 py-2 text-[11px] font-bold tracking-wide text-outline uppercase border-b border-surface-mid">
+                      <span>Sucursal</span>
                       <span>Producto</span>
                       <span className="text-right">Cant.</span>
                       <span className="text-right">Total</span>
@@ -312,9 +340,12 @@ export default function VentasProductoMarcaPage() {
                     {rows.map((row, i) => (
                       <div
                         key={i}
-                        className="grid grid-cols-[1fr_72px_96px] gap-2 px-4 py-2.5 text-sm border-b border-surface-mid/50 last:border-0"
+                        className="grid grid-cols-[100px_1fr_72px_96px] gap-2 px-4 py-2.5 text-sm border-b border-surface-mid/50 last:border-0"
                       >
-                        <div>
+                        <span className="text-[11px] text-ink-soft self-center">
+                          {row.sucursal ?? '—'}
+                        </span>
+                        <div className="self-center">
                           <p className="font-medium text-ink">{row.producto ?? '—'}</p>
                           {row.codigoProducto && (
                             <p className="text-[11px] text-outline">{row.codigoProducto}</p>

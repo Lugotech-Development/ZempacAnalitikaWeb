@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { getSession } from '@/lib/api';
 import DashboardShell from './_shell';
+import { SessionExpiredModal } from '@/components/session-expired-modal';
 import type { SessionInfo } from '@/lib/types';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -23,5 +24,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     return null; // brief flash while checking auth
   }
 
-  return <DashboardShell session={session}>{children}</DashboardShell>;
+  return (
+    <>
+      <SessionExpiredModal />
+      <DashboardShell session={session}>{children}</DashboardShell>
+    </>
+  );
 }
