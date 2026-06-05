@@ -1,7 +1,6 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { UnauthorizedError, classifyError, type ErrorVariant } from './api';
 import { fetchAndCache, getCached, subscribe } from './cache';
 
@@ -42,7 +41,6 @@ export function useApi<T>(key: string, fetcher: () => Promise<T>) {
       : { status: 'loading' as const, data: null, error: null, errorVariant: null };
   });
   const [isValidating, setIsValidating] = useState(false);
-  const router = useRouter();
   const fetcherRef = useRef(fetcher);
   fetcherRef.current = fetcher;
 
@@ -58,7 +56,9 @@ export function useApi<T>(key: string, fetcher: () => Promise<T>) {
       });
     } catch (e) {
       if (e instanceof UnauthorizedError) {
-        router.replace('/login');
+        // emitSessionExpired() was already called in api.ts — modal fires immediately.
+        // Just stop loading; the modal handles navigation.
+        setIsValidating(false);
         return;
       }
       const { variant, message } = classifyError(e);
@@ -78,7 +78,7 @@ export function useApi<T>(key: string, fetcher: () => Promise<T>) {
     } finally {
       setIsValidating(false);
     }
-  }, [key, router]);
+  }, [key]);
 
   // Subscribe to direct cache mutations (e.g. another hook with the same key
   // finished a fetch, or someone called setCached).

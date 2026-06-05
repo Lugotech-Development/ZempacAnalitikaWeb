@@ -9,7 +9,6 @@ import { fmtMoney, toIsoEndOfDay, toIsoStartOfDay } from '@/lib/format';
 import { apiCuadreCaja, apiSucursales } from '@/lib/api';
 import { useApi } from '@/lib/use-api';
 import { cuadreCleanDesc, cuadreIsDivider, cuadreIsSectionHeader, cuadreIsSpacer, cuadreIsSubItem, type RptCuadreCajaLinea, type Sucursal } from '@/lib/types';
-import { useRouter } from 'next/navigation';
 
 type PresetId = 'hoy' | 'ayer' | '7d' | '30d' | 'mes';
 const PRESETS: { id: PresetId; label: string }[] = [
@@ -45,7 +44,6 @@ function computeRange(preset: PresetId): { fDesde: string; fHasta: string } {
 }
 
 export default function CuadreCajaPage() {
-  const router = useRouter();
   const sucursalesQ = useApi('sucursales', apiSucursales);
   const [sucursalId, setSucursalId] = useState<number | null>(null);
   const [preset, setPreset] = useState<PresetId>('hoy');
@@ -100,7 +98,9 @@ export default function CuadreCajaPage() {
               <div className="mt-4">
                 {cuadreQ.status === 'loading' && <LoadingState />}
                 {cuadreQ.status === 'error' &&
-                  (cuadreQ.errorVariant === 'session' ? (router.replace('/login'), null) : <ErrorState variant={cuadreQ.errorVariant!} message={cuadreQ.error!} onRetry={cuadreQ.reload} />)}
+                  (cuadreQ.errorVariant === 'session'
+                    ? null
+                    : <ErrorState variant={cuadreQ.errorVariant!} message={cuadreQ.error!} onRetry={cuadreQ.reload} />)}
                 {cuadreQ.status === 'success' &&
                   (cuadreQ.data && cuadreQ.data.length > 0 ? (
                     <Receipt lineas={cuadreQ.data} sucursalNombre={sucursalActual?.nombre ?? ''} />
