@@ -3,7 +3,7 @@
 // if that fails we emit a session-expired event and throw UnauthorizedError.
 import { emitSessionExpired } from './session-events';
 
-import type { Marca, RptCuadreCajaLinea, RptCuentasPorCobrar, RptCxcDetalleFactura, RptDevolucion, RptPantallaPrincipal, RptProductoMasVendido, RptVenta, RptVentaFacturador, RptVentaProductoMarca, SessionInfo, Sucursal } from './types';
+import type { Marca, RptCuadreCajaLinea, RptCuentasPorCobrar, RptCxcDetalleFactura, RptDevolucion, RptLote, RptLoteCondensadoLinea, RptPantallaPrincipal, RptProductoMasVendido, RptVenta, RptVentaFacturador, RptVentaProductoMarca, SessionInfo, Sucursal } from './types';
 import {
   parseCuadreLinea,
   parseCxcAntiguedad,
@@ -11,6 +11,8 @@ import {
   parseCxcResumen,
   parseCxcTopCliente,
   parseDevolucion,
+  parseLote,
+  parseLoteCondensadoLinea,
   parsePantallaPrincipal,
   parseProducto,
   parseSucursal,
@@ -274,6 +276,24 @@ export const apiCuadreCaja = (input: { sucursal: number; fDesde?: string; fHasta
     fDesde: input.fDesde,
     fHasta: input.fHasta
   });
+
+// ─── Cuadre de Caja · Por Lotes ──────────────────────────────────────────
+// These two endpoints come straight from a stored procedure with no DTO, so
+// we don't yet know the column names. For now we return the raw rows and log
+// a live response to the console so the shapes can be mapped properly later.
+
+export const apiAnaliticaLotes = (input: { sucursal: number; status: number; fDesde?: string; fHasta?: string }) =>
+  getJson<RptLote[]>('/api/Reportes/analitica-lotes', data => (Array.isArray(data) ? data.map(r => parseLote(r as Record<string, unknown>)) : []), {
+    sucursal: String(input.sucursal),
+    status: String(input.status),
+    fDesde: input.fDesde,
+    fHasta: input.fHasta
+  });
+
+export const apiAnaliticaLoteCondensado = (lote: number) =>
+  getJson<RptLoteCondensadoLinea[]>(`/api/Reportes/analitica-lote-condensado/${lote}`, data =>
+    Array.isArray(data) ? data.map(r => parseLoteCondensadoLinea(r as Record<string, unknown>)) : []
+  );
 
 // ─── Cuentas por Cobrar (CxC) ────────────────────────────────────────────
 // The page consumes 3 sub-endpoints. We fetch them in parallel through a
