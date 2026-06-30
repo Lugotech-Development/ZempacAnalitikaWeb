@@ -256,7 +256,7 @@ export function apiMe(): SessionInfo {
 export const apiSucursales = () => getJson<Sucursal[]>('/api/Empresas/sucursales', data => (Array.isArray(data) ? data.map(r => parseSucursal(r as Record<string, unknown>)) : []));
 
 export const apiPantallaPrincipal = () =>
-  getJson<RptPantallaPrincipal>('/api/Reportes/pantalla-principal', data => {
+  getJson<RptPantallaPrincipal>('/api/Reportes/pantalla-principal-v2', data => {
     if (!Array.isArray(data) || data.length === 0) {
       throw new UpstreamApiError(204, 'Sin datos para pantalla principal');
     }
