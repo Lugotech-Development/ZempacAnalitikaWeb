@@ -44,6 +44,21 @@ export function useApi<T>(key: string, fetcher: () => Promise<T>) {
   const fetcherRef = useRef(fetcher);
   fetcherRef.current = fetcher;
 
+  // When the key changes (e.g. the user switched sucursal / date / lote) the
+  // hook must NOT keep showing the previous key's data — that's a different
+  // query. Reset to the loading state synchronously during render (the
+  // React-blessed "adjust state when a prop changes" pattern) so the switch
+  // shows the skeleton, never the old selection's rows. This matters most on a
+  // money report like the cuadre, where briefly showing the previous sucursal's
+  // totals under the new sucursal's header invites a misread. The LoadingBar is
+  // reserved for same-key background revalidation (focus / online), so the
+  // skeleton and the bar never compete for the same moment.
+  const [prevKey, setPrevKey] = useState(key);
+  if (key !== prevKey) {
+    setPrevKey(key);
+    setState({ status: 'loading', data: null, error: null, errorVariant: null });
+  }
+
   const load = useCallback(async () => {
     setIsValidating(true);
     try {

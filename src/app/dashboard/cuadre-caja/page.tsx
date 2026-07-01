@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Icon, type IconName } from '@/components/icon';
 import { PageHeader } from '@/components/page-header';
 import { EyebrowLabel } from '@/components/common';
-import { EmptyState, ErrorState, LoadingState } from '@/components/states';
+import { EmptyState, ErrorState, LoadingBar, LoadingState } from '@/components/states';
 import { fmtMoney, toIsoEndOfDay, toIsoStartOfDay } from '@/lib/format';
 import { apiAnaliticaLoteCondensado, apiAnaliticaLotes, apiCuadreCaja, apiSucursales } from '@/lib/api';
 import { useApi } from '@/lib/use-api';
@@ -133,6 +133,7 @@ function GeneralTab({ sucursalId, range, sucursalNombre }: { sucursalId: number 
   const cuadreQ = useCuadre(sucursalId, range);
   return (
     <>
+      <LoadingBar active={cuadreQ.isValidating && cuadreQ.status === 'success'} className="mb-3" />
       {cuadreQ.status === 'loading' && <LoadingState />}
       {cuadreQ.status === 'error' && (cuadreQ.errorVariant === 'session' ? null : <ErrorState variant={cuadreQ.errorVariant!} message={cuadreQ.error!} onRetry={cuadreQ.reload} />)}
       {cuadreQ.status === 'success' &&
@@ -240,6 +241,10 @@ function LotesTab({ sucursalId, range, sucursalNombre }: { sucursalId: number | 
   // The list keeps showing the previous context's rows while revalidating, so
   // fall back to the loading skeleton until the new list resolves.
   const listLoading = lotesQ.status === 'loading' || (lotesQ.isValidating && selectedLote == null);
+  // Once we're past the skeleton (rows on screen) a background refresh shows the
+  // thin loading line instead, the same cue the General tab uses.
+  const listRefreshing = lotesQ.isValidating && !listLoading;
+  const detailRefreshing = condensadoQ.isValidating && condensadoQ.status === 'success';
 
   return (
     <div className="grid gap-4 lg:grid-cols-[minmax(0,360px)_1fr]">
@@ -248,6 +253,7 @@ function LotesTab({ sucursalId, range, sucursalNombre }: { sucursalId: number | 
           <EyebrowLabel>Lotes</EyebrowLabel>
           <p className="mt-0.5 text-xs text-ink-variant">{sucursalNombre}</p>
         </div>
+        <LoadingBar active={listRefreshing} className="rounded-none" />
         <div className="p-2 max-h-[32rem] overflow-y-auto zsb-scroll">
           {lotesQ.status === 'error' ? (
             lotesQ.errorVariant === 'session' ? null : <ErrorState variant={lotesQ.errorVariant!} message={lotesQ.error!} onRetry={lotesQ.reload} />
@@ -270,6 +276,7 @@ function LotesTab({ sucursalId, range, sucursalNombre }: { sucursalId: number | 
       </div>
 
       <div>
+        <LoadingBar active={detailRefreshing} className="mb-3" />
         {listLoading && selectedLote == null ? (
           <LoadingState />
         ) : selectedLote == null ? (

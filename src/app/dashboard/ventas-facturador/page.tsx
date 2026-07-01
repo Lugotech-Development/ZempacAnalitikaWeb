@@ -6,7 +6,7 @@ import { Icon } from '@/components/icon';
 
 const FacturadorChart = dynamic(() => import('@/components/facturador-chart'), { ssr: false });
 import { PageHeader } from '@/components/page-header';
-import { EmptyState, ErrorState, LoadingState } from '@/components/states';
+import { EmptyState, ErrorState, LoadingBar, LoadingState } from '@/components/states';
 import { fmtMoney, toIsoEndOfDay, toIsoStartOfDay } from '@/lib/format';
 import { apiSucursales, apiVentasFacturadorSucursal } from '@/lib/api';
 import { useApi } from '@/lib/use-api';
@@ -174,6 +174,7 @@ export default function VentasFacturadorPage() {
             </div>
           </div>
 
+          <LoadingBar active={q.isValidating && q.status === 'success'} className="mb-4" />
           {q.status === 'loading' && <LoadingState />}
           {q.status === 'error' && <ErrorState variant={q.errorVariant!} message={q.error!} onRetry={q.reload} />}
 

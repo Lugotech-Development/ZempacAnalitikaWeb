@@ -61,7 +61,7 @@ src/
 │   ├── icon.tsx                # Material Symbols registry → <Icon name="…" size={…} />
 │   ├── common.tsx              # ZempacLogo, EyebrowLabel, TrendBadge
 │   ├── page-header.tsx         # <PageHeader eyebrow title subtitle icon isValidating />
-│   ├── states.tsx              # LoadingState, ErrorState, EmptyState, SkeletonBox (shimmer)
+│   ├── states.tsx              # LoadingState, ErrorState, EmptyState, SkeletonBox (shimmer), LoadingBar (thin refresh line)
 │   ├── global-search.tsx       # Cmd-K style search across reports (deferred index)
 │   └── series-chart.tsx        # Generic Area chart — always loaded via next/dynamic({ ssr: false })
 ├── lib/
@@ -139,6 +139,7 @@ Standard component patterns (do **not** invent variants):
 - **Brand mark** → `<ZempacLogo size={36} withWordmark />`
 - **Loading / error / empty** → `<LoadingState />`, `<ErrorState variant={…} message={…} onRetry={…} />`, `<EmptyState message=…/>`
 - **Skeleton** → `<SkeletonBox className="h-56" />` (animated shimmer)
+- **Refresh line** → `<LoadingBar active={q.isValidating && q.status === 'success'} />` — the thin indeterminate progress line for a **same-key background refresh** (focus / visibility / online revalidation), where the data is unchanged and blanking it with a skeleton would be wrong. It is gated on `status === 'success'`, so it never fires during a switch: `useApi` resets to `loading` whenever its `key` changes (switching sucursal / date / lote), so a switch always shows the `LoadingState` skeleton — never the previous selection's rows. Skeleton and bar therefore never compete for the same moment.
 - **Chart** → import via `next/dynamic` only:
   ```tsx
   const Chart = dynamic(() => import('@/components/series-chart'), {
