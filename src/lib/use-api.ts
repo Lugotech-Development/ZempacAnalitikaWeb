@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { UnauthorizedError, classifyError, type ErrorVariant } from './api';
+import { AccessBlockedError, UnauthorizedError, classifyError, type ErrorVariant } from './api';
 import { fetchAndCache, getCached, subscribe } from './cache';
 
 type State<T> =
@@ -70,9 +70,10 @@ export function useApi<T>(key: string, fetcher: () => Promise<T>) {
         errorVariant: null
       });
     } catch (e) {
-      if (e instanceof UnauthorizedError) {
-        // emitSessionExpired() was already called in api.ts — modal fires immediately.
-        // Just stop loading; the modal handles navigation.
+      if (e instanceof UnauthorizedError || e instanceof AccessBlockedError) {
+        // The global overlay already fired (emitSessionExpired / emitAccessBlocked
+        // in api.ts). Just stop loading; the modal owns the UI from here — no
+        // inline error state, which would only sit hidden behind the overlay.
         setIsValidating(false);
         return;
       }
