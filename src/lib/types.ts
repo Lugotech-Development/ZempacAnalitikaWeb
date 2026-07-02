@@ -100,6 +100,51 @@ export type RptCuadreCajaLinea = {
   fechaImpresion: string | null;
 };
 
+// ─── Cuadre de Caja · Por Lotes ──────────────────────────────────────────
+// `analitica-lotes` returns one row per cash-drawer lote for the sucursal/
+// range. `NIR` is the lote id used to fetch its condensed report. The
+// condensed report (`analitica-lote-condensado/{lote}`) returns the same
+// receipt-line shape as the general cuadre, plus the lote's metadata repeated
+// on every row.
+
+/** Lote status as the stored procedure expects it on the `status` query param. */
+export const LOTE_ESTATUS = { ABIERTO: 0, CERRADO: 1 } as const;
+
+export type RptLote = {
+  nir: number;
+  docNum: number | null;
+  fecha: string | null;
+  cajaInicial: number | null;
+  estatus: number | null;
+  estatusNombre: string | null;
+  tipo: number | null;
+  tipoNombre: string | null;
+  usuario: number | null;
+  usuarioNombre: string | null;
+  desglosado: boolean | null;
+};
+
+export type RptLoteCondensadoLinea = {
+  // Receipt-line fields (same shape as RptCuadreCajaLinea).
+  nir: number;
+  descripcion: string | null;
+  cantidad: number | null;
+  signo: number | null;
+  valor: number | null;
+  formato: string | null;
+  grupo: number | null;
+  // Lote metadata, repeated on every row.
+  loteNir: number | null;
+  loteDocNum: number | null;
+  loteFecha: string | null;
+  cajaInicial: number | null;
+  loteUsuario: number | null;
+  loteUsuarioNombre: string | null;
+  loteEstatus: number | null;
+  loteEstatusNombre: string | null;
+  ncf: string | null;
+};
+
 // ─── Cuentas por Cobrar (CxC) ───────────────────────────────────────────
 // Field names mirror the live API response (PascalCase). The OpenAPI doc
 // only declares responses as `array of object` with no schema, so these
@@ -269,6 +314,39 @@ export const parseCuadreLinea = (j: J): RptCuadreCajaLinea => ({
   grupo: num(j.Grupo),
   cajaInicial: num(j.CajaInicial),
   fechaImpresion: str(j.FechaImpresion)
+});
+
+export const parseLote = (j: J): RptLote => ({
+  nir: num(j.NIR) ?? 0,
+  docNum: num(j.DocNum),
+  fecha: str(j.Fecha),
+  cajaInicial: num(j.CajaInicial),
+  estatus: num(j.Estatus),
+  estatusNombre: str(j.EstatusNombre),
+  tipo: num(j.Tipo),
+  tipoNombre: str(j.TipoNombre),
+  usuario: num(j.Usuario),
+  usuarioNombre: str(j.UsuarioNombre),
+  desglosado: j.Desglosado == null ? null : Boolean(j.Desglosado)
+});
+
+export const parseLoteCondensadoLinea = (j: J): RptLoteCondensadoLinea => ({
+  nir: num(j.NIR) ?? 0,
+  descripcion: str(j.Descripcion),
+  cantidad: num(j.Cantidad),
+  signo: num(j.Signo),
+  valor: num(j.Valor),
+  formato: str(j.Formato),
+  grupo: num(j.Grupo),
+  loteNir: num(j.LoteNIR),
+  loteDocNum: num(j.LoteDocNum),
+  loteFecha: str(j.LoteFecha),
+  cajaInicial: num(j.CajaInicial),
+  loteUsuario: num(j.LoteUsuario),
+  loteUsuarioNombre: str(j.LoteUsuarioNombre),
+  loteEstatus: num(j.LoteEstatus),
+  loteEstatusNombre: str(j.LoteEstatusNombre),
+  ncf: str(j.NCF)
 });
 
 // ─── CxC parsers (tolerant of PascalCase / camelCase / common aliases) ──

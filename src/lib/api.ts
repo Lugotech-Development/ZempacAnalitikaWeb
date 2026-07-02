@@ -2,8 +2,9 @@
 // Auth tokens are stored in localStorage. On 401 we attempt a silent refresh;
 // if that fails we emit a session-expired event and throw UnauthorizedError.
 import { emitSessionExpired } from './session-events';
+import { detectAccessBlock, emitAccessBlocked, type AccessBlock } from './access-block-events';
 
-import type { Marca, RptCuadreCajaLinea, RptCuentasPorCobrar, RptCxcDetalleFactura, RptDevolucion, RptPantallaPrincipal, RptProductoMasVendido, RptVenta, RptVentaFacturador, RptVentaProductoMarca, SessionInfo, Sucursal } from './types';
+import type { Marca, RptCuadreCajaLinea, RptCuentasPorCobrar, RptCxcDetalleFactura, RptDevolucion, RptLote, RptLoteCondensadoLinea, RptPantallaPrincipal, RptProductoMasVendido, RptVenta, RptVentaFacturador, RptVentaProductoMarca, SessionInfo, Sucursal } from './types';
 import {
   parseCuadreLinea,
   parseCxcAntiguedad,
@@ -11,6 +12,8 @@ import {
   parseCxcResumen,
   parseCxcTopCliente,
   parseDevolucion,
+  parseLote,
+  parseLoteCondensadoLinea,
   parsePantallaPrincipal,
   parseProducto,
   parseSucursal,
@@ -46,10 +49,12 @@ export function getSession(): StoredSession | null {
 
 export function setSession(s: StoredSession): void {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(s));
+  accessBlocked = null; // a fresh sign-in starts unblocked
 }
 
 export function clearSession(): void {
   localStorage.removeItem(STORAGE_KEY);
+  accessBlocked = null; // don't carry a block into the login screen
 }
 
 // ─── Error classes ──────────────────────────────────────────────────────────
@@ -75,6 +80,19 @@ export class NetworkError extends Error {
   constructor(message = 'No se pudo conectar con el servidor') {
     super(message);
     this.name = 'NetworkError';
+  }
+}
+
+/**
+ * Thrown when the backend middleware refuses a request with a block envelope
+ * (e.g. expired trial). It carries the parsed block; the global modal — fired
+ * via emitAccessBlocked — is what the user actually sees, so callers should
+ * treat this like UnauthorizedError and simply stop, not render an inline error.
+ */
+export class AccessBlockedError extends Error {
+  constructor(public block: AccessBlock) {
+    super(block.message);
+    this.name = 'AccessBlockedError';
   }
 }
 
@@ -114,9 +132,27 @@ async function tryRefresh(): Promise<string | null> {
   return refreshPromise;
 }
 
+// ─── Access-block guard ─────────────────────────────────────────────────────
+// Once the middleware blocks the account, every subsequent call short-circuits
+// here: we never hit the network again (nothing will succeed until the block is
+// resolved), and we re-broadcast so a freshly-mounted modal still shows. Reset
+// on setSession / clearSession above. Detection itself lives in getJson, the
+// single point every data endpoint parses its body through.
+let accessBlocked: AccessBlock | null = null;
+
+// Latch a freshly-detected block and hand it to the global modal, then throw so
+// the calling report stops. Idempotent — safe to call again while already blocked.
+function raiseAccessBlock(block: AccessBlock): never {
+  accessBlocked = block;
+  emitAccessBlocked(block);
+  throw new AccessBlockedError(block);
+}
+
 // ─── Core fetch with auth + retry on 401 ───────────────────────────────────
 
 async function authFetch(path: string, init?: RequestInit): Promise<Response> {
+  if (accessBlocked) raiseAccessBlock(accessBlocked); // already blocked → don't touch the network
+
   const session = getSession();
   if (!session?.token) throw new UnauthorizedError();
 
@@ -176,6 +212,11 @@ async function getJson<T>(path: string, mapper: (data: unknown) => T, search?: R
   } catch {
     body = null;
   }
+  // Middleware block envelope ({ success:false, code, message }) can arrive on
+  // any status — check before the generic error path so it becomes a global
+  // AccessBlockedError (→ modal) rather than an inline "server error".
+  const block = detectAccessBlock(res.status, body);
+  if (block) raiseAccessBlock(block);
   if (!res.ok) {
     const msg = (body as { error?: string; message?: string })?.error ?? (body as { message?: string })?.message ?? `Error inesperado (${res.status})`;
     throw new UpstreamApiError(res.status, msg);
@@ -254,7 +295,7 @@ export function apiMe(): SessionInfo {
 export const apiSucursales = () => getJson<Sucursal[]>('/api/Empresas/sucursales', data => (Array.isArray(data) ? data.map(r => parseSucursal(r as Record<string, unknown>)) : []));
 
 export const apiPantallaPrincipal = () =>
-  getJson<RptPantallaPrincipal>('/api/Reportes/pantalla-principal', data => {
+  getJson<RptPantallaPrincipal>('/api/Reportes/pantalla-principal-v2', data => {
     if (!Array.isArray(data) || data.length === 0) {
       throw new UpstreamApiError(204, 'Sin datos para pantalla principal');
     }
@@ -274,6 +315,24 @@ export const apiCuadreCaja = (input: { sucursal: number; fDesde?: string; fHasta
     fDesde: input.fDesde,
     fHasta: input.fHasta
   });
+
+// ─── Cuadre de Caja · Por Lotes ──────────────────────────────────────────
+// These two endpoints come straight from a stored procedure with no DTO, so
+// we don't yet know the column names. For now we return the raw rows and log
+// a live response to the console so the shapes can be mapped properly later.
+
+export const apiAnaliticaLotes = (input: { sucursal: number; status: number; fDesde?: string; fHasta?: string }) =>
+  getJson<RptLote[]>('/api/Reportes/analitica-lotes', data => (Array.isArray(data) ? data.map(r => parseLote(r as Record<string, unknown>)) : []), {
+    sucursal: String(input.sucursal),
+    status: String(input.status),
+    fDesde: input.fDesde,
+    fHasta: input.fHasta
+  });
+
+export const apiAnaliticaLoteCondensado = (lote: number) =>
+  getJson<RptLoteCondensadoLinea[]>(`/api/Reportes/analitica-lote-condensado/${lote}`, data =>
+    Array.isArray(data) ? data.map(r => parseLoteCondensadoLinea(r as Record<string, unknown>)) : []
+  );
 
 // ─── Cuentas por Cobrar (CxC) ────────────────────────────────────────────
 // The page consumes 3 sub-endpoints. We fetch them in parallel through a

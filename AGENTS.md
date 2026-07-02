@@ -61,7 +61,7 @@ src/
 │   ├── icon.tsx                # Material Symbols registry → <Icon name="…" size={…} />
 │   ├── common.tsx              # ZempacLogo, EyebrowLabel, TrendBadge
 │   ├── page-header.tsx         # <PageHeader eyebrow title subtitle icon isValidating />
-│   ├── states.tsx              # LoadingState, ErrorState, EmptyState, SkeletonBox (shimmer)
+│   ├── states.tsx              # LoadingState, ErrorState, EmptyState, SkeletonBox (shimmer), LoadingBar (thin refresh line)
 │   ├── global-search.tsx       # Cmd-K style search across reports (deferred index)
 │   └── series-chart.tsx        # Generic Area chart — always loaded via next/dynamic({ ssr: false })
 ├── lib/
@@ -83,6 +83,7 @@ Path alias: `@/*` → `src/*`.
 - **Session storage**: client-side **`localStorage`** key `zempac.session` holds `{ token, refreshToken, empresa, usuario }`.
 - **Token refresh**: `tryRefresh()` in [`src/lib/api.ts`](src/lib/api.ts) is mutex-guarded by a module-level `refreshPromise` so concurrent 401s only fire one `/api/auth/refresh` call.
 - **401 handling**: `authFetch()` retries the original request once with the refreshed token; if refresh fails it clears the session and throws `UnauthorizedError`. `useApi` listens for this and routes through `useRouter().replace('/login')`.
+- **Access-block handling**: the upstream runs a middleware that can refuse any authenticated call with a JSON envelope `{ success:false, code, message, … }` (e.g. `TRIAL_VENCIDO`). `getJson` detects it via `detectAccessBlock` (in [`src/lib/access-block-events.ts`](src/lib/access-block-events.ts)) on **any** status, latches a module flag so further calls short-circuit without hitting the network, and broadcasts through `emitAccessBlocked`. The global `AccessBlockedModal` (mounted in `dashboard/layout.tsx`, alongside `SessionExpiredModal`) shows a hard, non-dismissible overlay. It is **code-agnostic**: the backend `message` is shown verbatim and only the title/icon are per-`code` (unknown codes get a default), so new block types need no code change beyond an optional `PRESENTATION` entry. Callers treat `AccessBlockedError` like `UnauthorizedError` (stop, no inline error). The latch resets in `setSession` / `clearSession`. Mirrored in the Flutter app (`../ReportesZempacApp`: `lib/models/access_block.dart` + `lib/services/access_blocked_handler.dart`, detection in `api_service.dart`).
 - **Static export caveat**: because `output: 'export'`, we have **no `/api/*` route handlers, no middleware, no `proxy.ts`**. All API calls happen from the browser directly to the upstream host. CORS must be allowed upstream. Do **not** add `route.ts` files or middleware — they won't build under `output: 'export'`.
 
 ## Data layer (SWR-style cache)
@@ -139,6 +140,7 @@ Standard component patterns (do **not** invent variants):
 - **Brand mark** → `<ZempacLogo size={36} withWordmark />`
 - **Loading / error / empty** → `<LoadingState />`, `<ErrorState variant={…} message={…} onRetry={…} />`, `<EmptyState message=…/>`
 - **Skeleton** → `<SkeletonBox className="h-56" />` (animated shimmer)
+- **Refresh line** → `<LoadingBar active={q.isValidating && q.status === 'success'} />` — the thin indeterminate progress line for a **same-key background refresh** (focus / visibility / online revalidation), where the data is unchanged and blanking it with a skeleton would be wrong. It is gated on `status === 'success'`, so it never fires during a switch: `useApi` resets to `loading` whenever its `key` changes (switching sucursal / date / lote), so a switch always shows the `LoadingState` skeleton — never the previous selection's rows. Skeleton and bar therefore never compete for the same moment.
 - **Chart** → import via `next/dynamic` only:
   ```tsx
   const Chart = dynamic(() => import('@/components/series-chart'), {
@@ -199,6 +201,8 @@ Three reports currently render against placeholder fetchers in [`src/lib/mock.ts
 > **Ventas por Marca is now live** (2026-06-03) — `src/app/dashboard/ventas-producto-marca/page.tsx`. Groups products by brand. No sucursal filter. Date preset pills (default: Este mes). Endpoint: `/api/Reportes/ventas-producto-marca`. Types: `RptVentaProductoMarca` / `parseVentaProductoMarca` in `src/lib/types.ts`. API: `apiVentasProductoMarca` in `src/lib/api.ts`. NAV icon: `sell`.
 
 > **Ventas por Facturador is now live** (2026-06-03) — `src/app/dashboard/ventas-facturador/page.tsx`. Shows sales per billing employee with a sucursal dropdown ("Todas las sucursales" = no filter) and date preset pills (default: Este mes). Endpoint: `/api/Reportes/ventas-facturador-sucursal`. Types: `RptVentaFacturador` / `parseVentaFacturador` in `src/lib/types.ts`. API: `apiVentasFacturadorSucursal` in `src/lib/api.ts`. NAV icon: `badge` (added to `src/components/icon.tsx`).
+
+> **Cuadre de Caja — pestaña "Por lotes"** (2026-06-23) — `src/app/dashboard/cuadre-caja/page.tsx` now has two tabs: **General** (the existing daily cuadre) and **Por lotes** (master/detail: lote list + the selected lote's condensed receipt, which reuses the `Line` component via `loteLineaToCuadre`). Endpoints: `GET /api/Reportes/analitica-lotes?sucursal&status&fDesde&fHasta` (lote id = `NIR`; **`status` is REQUIRED** — `0`=Abierto, `1`=Cerrado, the legacy SP returns one status per call, no "all" mode) and `GET /api/Reportes/analitica-lote-condensado/{lote}`. Types `RptLote` / `RptLoteCondensadoLinea` + `LOTE_ESTATUS` and parsers in `src/lib/types.ts`; `apiAnaliticaLotes` / `apiAnaliticaLoteCondensado` in `src/lib/api.ts`. No status dropdown — the date drives it: range reaching **today** → fetch abiertos + cerrados in parallel (abiertos first); **fully-past** range → cerrados only. All cache keys carry the full filter context. Mirrored in Flutter (`lib/screens/cuadre_caja/cuadre_caja_screen.dart`, `lib/models/rpt_lote.dart`).
 
 | Slug             | Route                       | Cache key            | Fetcher                 | Why pharmacies need it                                                                      |
 | ---------------- | --------------------------- | -------------------- | ----------------------- | ------------------------------------------------------------------------------------------- |

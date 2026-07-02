@@ -12,6 +12,24 @@ export function SkeletonBox({ className = '' }: { className?: string }) {
   );
 }
 
+/**
+ * Thin indeterminate progress line — the lightweight "data is refreshing" cue
+ * for when stale content stays on screen while a new fetch runs (e.g. switching
+ * sucursal / date / lote on a report that already has cached rows). Reserves its
+ * 3px height even when idle so toggling `active` never shifts the layout.
+ */
+export function LoadingBar({ active, className = '' }: { active: boolean; className?: string }) {
+  return (
+    <div
+      className={`relative h-[3px] w-full overflow-hidden rounded-pill transition-opacity duration-200 ${active ? 'bg-primary/10 opacity-100' : 'opacity-0'} ${className}`}
+      role="progressbar"
+      aria-busy={active}
+      aria-hidden={!active}>
+      {active && <div className="absolute inset-y-0 left-0 w-2/5 rounded-pill bg-primary-gradient animate-loading-sweep" />}
+    </div>
+  );
+}
+
 export function LoadingState({ label = 'Cargando datos…' }: { label?: string }) {
   return (
     <div className="grid gap-5">

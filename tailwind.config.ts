@@ -70,10 +70,15 @@ const config: Config = {
         shimmer: {
           '0%': { backgroundPosition: '-200% 0' },
           '100%': { backgroundPosition: '200% 0' }
+        },
+        'loading-sweep': {
+          '0%': { transform: 'translateX(-100%)' },
+          '100%': { transform: 'translateX(250%)' }
         }
       },
       animation: {
-        shimmer: 'shimmer 1.8s ease-in-out infinite'
+        shimmer: 'shimmer 1.8s ease-in-out infinite',
+        'loading-sweep': 'loading-sweep 1.15s ease-in-out infinite'
       }
     }
   },
