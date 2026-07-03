@@ -145,6 +145,20 @@ export type RptLoteCondensadoLinea = {
   ncf: string | null;
 };
 
+// One product row of a lote's detail (`analitica-productos-por-lote/{lote}`).
+// Raw stored-procedure output: only Codigo (DocNum), Nombre and Vendido (qty).
+export type RptProductoPorLote = {
+  codigo: number | null;
+  nombre: string | null;
+  vendido: number | null;
+};
+
+/** Ordering options for analitica-productos-por-lote, as the `orderBy` query
+ *  param expects them. Directions are fixed by the SP (código/nombre asc,
+ *  vendido desc). */
+export const PRODUCTO_LOTE_ORDER = { CODIGO: 1, NOMBRE: 2, VENDIDO: 3 } as const;
+export type ProductoLoteOrder = (typeof PRODUCTO_LOTE_ORDER)[keyof typeof PRODUCTO_LOTE_ORDER];
+
 // ─── Cuentas por Cobrar (CxC) ───────────────────────────────────────────
 // Field names mirror the live API response (PascalCase). The OpenAPI doc
 // only declares responses as `array of object` with no schema, so these
@@ -347,6 +361,12 @@ export const parseLoteCondensadoLinea = (j: J): RptLoteCondensadoLinea => ({
   loteEstatus: num(j.LoteEstatus),
   loteEstatusNombre: str(j.LoteEstatusNombre),
   ncf: str(j.NCF)
+});
+
+export const parseProductoPorLote = (j: J): RptProductoPorLote => ({
+  codigo: num(j.Codigo),
+  nombre: str(j.Nombre),
+  vendido: num(j.Vendido)
 });
 
 // ─── CxC parsers (tolerant of PascalCase / camelCase / common aliases) ──

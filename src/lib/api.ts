@@ -4,7 +4,7 @@
 import { emitSessionExpired } from './session-events';
 import { detectAccessBlock, emitAccessBlocked, type AccessBlock } from './access-block-events';
 
-import type { Marca, RptCuadreCajaLinea, RptCuentasPorCobrar, RptCxcDetalleFactura, RptDevolucion, RptLote, RptLoteCondensadoLinea, RptPantallaPrincipal, RptProductoMasVendido, RptVenta, RptVentaFacturador, RptVentaProductoMarca, SessionInfo, Sucursal } from './types';
+import type { Marca, RptCuadreCajaLinea, RptCuentasPorCobrar, RptCxcDetalleFactura, RptDevolucion, RptLote, RptLoteCondensadoLinea, RptPantallaPrincipal, RptProductoMasVendido, RptProductoPorLote, RptVenta, RptVentaFacturador, RptVentaProductoMarca, SessionInfo, Sucursal } from './types';
 import {
   parseCuadreLinea,
   parseCxcAntiguedad,
@@ -14,6 +14,7 @@ import {
   parseDevolucion,
   parseLote,
   parseLoteCondensadoLinea,
+  parseProductoPorLote,
   parsePantallaPrincipal,
   parseProducto,
   parseSucursal,
@@ -332,6 +333,15 @@ export const apiAnaliticaLotes = (input: { sucursal: number; status: number; fDe
 export const apiAnaliticaLoteCondensado = (lote: number) =>
   getJson<RptLoteCondensadoLinea[]>(`/api/Reportes/analitica-lote-condensado/${lote}`, data =>
     Array.isArray(data) ? data.map(r => parseLoteCondensadoLinea(r as Record<string, unknown>)) : []
+  );
+
+// Product detail of a lote (Código / Nombre / Vendido). `orderBy` selects the
+// SP's ordering: 1 = código asc, 2 = nombre asc, 3 = vendido desc.
+export const apiAnaliticaProductosPorLote = (lote: number, orderBy: number) =>
+  getJson<RptProductoPorLote[]>(
+    `/api/reportes/analitica-productos-por-lote/${lote}`,
+    data => (Array.isArray(data) ? data.map(r => parseProductoPorLote(r as Record<string, unknown>)) : []),
+    { orderBy: String(orderBy) }
   );
 
 // ─── Cuentas por Cobrar (CxC) ────────────────────────────────────────────
