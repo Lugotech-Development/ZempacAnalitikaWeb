@@ -1,14 +1,14 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Icon, type IconName } from '@/components/icon';
 import { PageHeader } from '@/components/page-header';
 import { EyebrowLabel } from '@/components/common';
 import { EmptyState, ErrorState, LoadingBar, LoadingState } from '@/components/states';
-import { fmtMoney, toIsoEndOfDay, toIsoStartOfDay } from '@/lib/format';
-import { apiAnaliticaLoteCondensado, apiAnaliticaLotes, apiCuadreCaja, apiSucursales } from '@/lib/api';
+import { fmtInt, fmtMoney, toIsoEndOfDay, toIsoStartOfDay } from '@/lib/format';
+import { apiAnaliticaLoteCondensado, apiAnaliticaLotes, apiAnaliticaProductosPorLote, apiCuadreCaja, apiSucursales } from '@/lib/api';
 import { useApi } from '@/lib/use-api';
-import { cuadreCleanDesc, cuadreIsDivider, cuadreIsSectionHeader, cuadreIsSpacer, cuadreIsSubItem, LOTE_ESTATUS, type RptCuadreCajaLinea, type RptLote, type RptLoteCondensadoLinea, type Sucursal } from '@/lib/types';
+import { cuadreCleanDesc, cuadreIsDivider, cuadreIsSectionHeader, cuadreIsSpacer, cuadreIsSubItem, LOTE_ESTATUS, PRODUCTO_LOTE_ORDER, type ProductoLoteOrder, type RptCuadreCajaLinea, type RptLote, type RptLoteCondensadoLinea, type RptProductoPorLote, type Sucursal } from '@/lib/types';
 
 type PresetId = 'hoy' | 'ayer' | '7d' | '30d' | 'mes';
 const PRESETS: { id: PresetId; label: string }[] = [
@@ -43,10 +43,11 @@ function computeRange(preset: PresetId): { fDesde: string; fHasta: string } {
   return { fDesde: toIsoStartOfDay(start), fHasta: toIsoEndOfDay(end) };
 }
 
-type TabId = 'general' | 'lotes';
+type TabId = 'general' | 'lotes' | 'productos';
 const TABS: { id: TabId; label: string; icon: IconName }[] = [
   { id: 'general', label: 'General', icon: 'point_of_sale' },
-  { id: 'lotes', label: 'Por lotes', icon: 'inventory_2' }
+  { id: 'lotes', label: 'Por lotes', icon: 'inventory_2' },
+  { id: 'productos', label: 'Productos por lotes', icon: 'shopping_bag' }
 ];
 
 export default function CuadreCajaPage() {
@@ -117,8 +118,10 @@ export default function CuadreCajaPage() {
               <div className="mt-4">
                 {tab === 'general' ? (
                   <GeneralTab sucursalId={sucursalId} range={range} sucursalNombre={sucursalActual?.nombre ?? ''} />
-                ) : (
+                ) : tab === 'lotes' ? (
                   <LotesTab sucursalId={sucursalId} range={range} sucursalNombre={sucursalActual?.nombre ?? ''} />
+                ) : (
+                  <ProductosTab sucursalId={sucursalId} range={range} sucursalNombre={sucursalActual?.nombre ?? ''} />
                 )}
               </div>
             </>
@@ -212,7 +215,34 @@ function useLoteCondensado(ctx: string, lote: number | null) {
   });
 }
 
-function LotesTab({ sucursalId, range, sucursalNombre }: { sucursalId: number | null; range: { fDesde: string; fHasta: string }; sucursalNombre: string }) {
+// One fetch per lote. The SP requires an `orderBy`, but it returns the full
+// product set and ignores the param (every orderBy comes back in the same
+// order), so we fetch once and sort client-side in LoteProductosDetail. Keeping
+// orderBy out of the key makes the sort pills instant — no refetch per toggle.
+function useProductosPorLote(ctx: string, lote: number | null) {
+  const key = lote == null ? 'productos-lote:idle' : `productos-lote:${ctx}:${lote}`;
+  const noopRef = useRef<RptProductoPorLote[]>([]);
+  return useApi<RptProductoPorLote[]>(key, async () => {
+    if (lote == null) return noopRef.current;
+    return apiAnaliticaProductosPorLote(lote, PRODUCTO_LOTE_ORDER.CODIGO);
+  });
+}
+
+// Shared master/detail scaffold for the lote-scoped tabs (Por lotes, Productos):
+// a lote picker list on the left and a per-lote detail on the right. Only the
+// detail differs per tab, so it's injected via renderDetail; the fetch,
+// selection and loading cues stay identical to keep the tabs in lockstep.
+function LoteMasterDetail({
+  sucursalId,
+  range,
+  sucursalNombre,
+  renderDetail
+}: {
+  sucursalId: number | null;
+  range: { fDesde: string; fHasta: string };
+  sucursalNombre: string;
+  renderDetail: (selectedLote: number, ctx: string) => ReactNode;
+}) {
   const ctx = filterContextKey(sucursalId, range);
   const lotesQ = useLotes(ctx, sucursalId, range);
   const [selectedLote, setSelectedLote] = useState<number | null>(null);
@@ -236,15 +266,12 @@ function LotesTab({ sucursalId, range, sucursalNombre }: { sucursalId: number | 
     setSelectedLote(prev => (prev != null && lotes.some(l => l.nir === prev) ? prev : lotes[0].nir));
   }, [lotes]);
 
-  const condensadoQ = useLoteCondensado(ctx, selectedLote);
-
   // The list keeps showing the previous context's rows while revalidating, so
   // fall back to the loading skeleton until the new list resolves.
   const listLoading = lotesQ.status === 'loading' || (lotesQ.isValidating && selectedLote == null);
   // Once we're past the skeleton (rows on screen) a background refresh shows the
   // thin loading line instead, the same cue the General tab uses.
   const listRefreshing = lotesQ.isValidating && !listLoading;
-  const detailRefreshing = condensadoQ.isValidating && condensadoQ.status === 'success';
 
   return (
     <div className="grid gap-4 lg:grid-cols-[minmax(0,360px)_1fr]">
@@ -276,26 +303,140 @@ function LotesTab({ sucursalId, range, sucursalNombre }: { sucursalId: number | 
       </div>
 
       <div>
-        <LoadingBar active={detailRefreshing} className="mb-3" />
         {listLoading && selectedLote == null ? (
           <LoadingState />
         ) : selectedLote == null ? (
           <EmptyState message="Selecciona un lote para ver el detalle." />
         ) : (
-          <>
-            {condensadoQ.status === 'loading' && <LoadingState />}
-            {condensadoQ.status === 'error' &&
-              (condensadoQ.errorVariant === 'session' ? null : <ErrorState variant={condensadoQ.errorVariant!} message={condensadoQ.error!} onRetry={condensadoQ.reload} />)}
-            {condensadoQ.status === 'success' &&
-              (condensadoQ.data && condensadoQ.data.length > 0 ? (
-                <LoteReceipt lineas={condensadoQ.data} sucursalNombre={sucursalNombre} />
-              ) : (
-                <EmptyState message="Sin detalle para el lote seleccionado." />
-              ))}
-          </>
+          renderDetail(selectedLote, ctx)
         )}
       </div>
     </div>
+  );
+}
+
+function LotesTab(props: { sucursalId: number | null; range: { fDesde: string; fHasta: string }; sucursalNombre: string }) {
+  return <LoteMasterDetail {...props} renderDetail={(lote, ctx) => <LoteCondensadoDetail lote={lote} ctx={ctx} sucursalNombre={props.sucursalNombre} />} />;
+}
+
+function ProductosTab(props: { sucursalId: number | null; range: { fDesde: string; fHasta: string }; sucursalNombre: string }) {
+  return <LoteMasterDetail {...props} renderDetail={(lote, ctx) => <LoteProductosDetail lote={lote} ctx={ctx} sucursalNombre={props.sucursalNombre} />} />;
+}
+
+function LoteCondensadoDetail({ lote, ctx, sucursalNombre }: { lote: number; ctx: string; sucursalNombre: string }) {
+  const condensadoQ = useLoteCondensado(ctx, lote);
+  const refreshing = condensadoQ.isValidating && condensadoQ.status === 'success';
+  return (
+    <>
+      <LoadingBar active={refreshing} className="mb-3" />
+      {condensadoQ.status === 'loading' && <LoadingState />}
+      {condensadoQ.status === 'error' &&
+        (condensadoQ.errorVariant === 'session' ? null : <ErrorState variant={condensadoQ.errorVariant!} message={condensadoQ.error!} onRetry={condensadoQ.reload} />)}
+      {condensadoQ.status === 'success' &&
+        (condensadoQ.data && condensadoQ.data.length > 0 ? (
+          <LoteReceipt lineas={condensadoQ.data} sucursalNombre={sucursalNombre} />
+        ) : (
+          <EmptyState message="Sin detalle para el lote seleccionado." />
+        ))}
+    </>
+  );
+}
+
+// Ordering options exposed by the SP's `orderBy` param. Directions are fixed
+// (código/nombre ascendente, vendido descendente).
+const PRODUCTO_ORDER_OPTIONS: { id: ProductoLoteOrder; label: string }[] = [
+  { id: PRODUCTO_LOTE_ORDER.CODIGO, label: 'Código' },
+  { id: PRODUCTO_LOTE_ORDER.NOMBRE, label: 'Nombre' },
+  { id: PRODUCTO_LOTE_ORDER.VENDIDO, label: 'Más vendidos' }
+];
+
+function LoteProductosDetail({ lote, ctx, sucursalNombre }: { lote: number; ctx: string; sucursalNombre: string }) {
+  const [orderBy, setOrderBy] = useState<ProductoLoteOrder>(PRODUCTO_LOTE_ORDER.CODIGO);
+  const productosQ = useProductosPorLote(ctx, lote);
+  const refreshing = productosQ.isValidating && productosQ.status === 'success';
+  const productos = productosQ.status === 'success' ? productosQ.data : null;
+  const totalUnidades = useMemo(() => (productos ?? []).reduce((s, p) => s + (p.vendido ?? 0), 0), [productos]);
+
+  // Sort client-side (copy first — never mutate the cached array). Directions
+  // match the SP's contract: código/nombre ascendente, vendido descendente.
+  const sorted = useMemo(() => {
+    const copy = [...(productos ?? [])];
+    switch (orderBy) {
+      case PRODUCTO_LOTE_ORDER.NOMBRE:
+        copy.sort((a, b) => (a.nombre ?? '').localeCompare(b.nombre ?? '', 'es'));
+        break;
+      case PRODUCTO_LOTE_ORDER.VENDIDO:
+        copy.sort((a, b) => (b.vendido ?? 0) - (a.vendido ?? 0));
+        break;
+      default:
+        copy.sort((a, b) => (a.codigo ?? 0) - (b.codigo ?? 0));
+    }
+    return copy;
+  }, [productos, orderBy]);
+
+  return (
+    <>
+      <LoadingBar active={refreshing} className="mb-3" />
+      {productosQ.status === 'loading' && <LoadingState />}
+      {productosQ.status === 'error' &&
+        (productosQ.errorVariant === 'session' ? null : <ErrorState variant={productosQ.errorVariant!} message={productosQ.error!} onRetry={productosQ.reload} />)}
+      {productosQ.status === 'success' &&
+        (productos && productos.length > 0 ? (
+          <div className="card overflow-hidden">
+            <div className="px-6 py-5 border-b border-surface-mid flex flex-wrap items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="pill bg-primary/10 text-primary">
+                    <Icon name="shopping_bag" size={11} className="mr-1" />
+                    Productos
+                  </span>
+                  <span className="text-xs font-bold text-ink-variant">{sucursalNombre}</span>
+                </div>
+                <p className="mt-1.5 text-xs text-ink-variant tabular-nums">
+                  {fmtInt(productos.length)} producto{productos.length === 1 ? '' : 's'} · {fmtInt(totalUnidades)} unidades vendidas
+                </p>
+              </div>
+              <div className="flex items-center gap-2 overflow-x-auto -mx-1 px-1">
+                {PRODUCTO_ORDER_OPTIONS.map(o => {
+                  const active = o.id === orderBy;
+                  return (
+                    <button
+                      key={o.id}
+                      type="button"
+                      onClick={() => setOrderBy(o.id)}
+                      className={`shrink-0 pill text-xs ${active ? 'bg-primary text-white' : 'bg-surface-low text-ink-variant hover:bg-surface-mid'}`}>
+                      {o.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="overflow-x-auto zsb-scroll">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-surface-low text-left">
+                    <th className="px-6 py-2.5 text-[10px] font-bold uppercase tracking-eyebrow text-outline">Código</th>
+                    <th className="px-6 py-2.5 text-[10px] font-bold uppercase tracking-eyebrow text-outline">Producto</th>
+                    <th className="px-6 py-2.5 text-[10px] font-bold uppercase tracking-eyebrow text-outline text-right">Vendido</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-surface-mid">
+                  {sorted.map((p, i) => (
+                    <tr key={`${p.codigo}-${i}`} className="hover:bg-surface-low/60">
+                      <td className="px-6 py-2.5 font-bold text-ink tabular-nums">{p.codigo ?? '—'}</td>
+                      <td className="px-6 py-2.5 text-ink-variant">{p.nombre ?? '—'}</td>
+                      <td className="px-6 py-2.5 text-right font-bold text-ink tabular-nums">{fmtInt(p.vendido)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ) : (
+          <EmptyState message="Sin productos para el lote seleccionado." />
+        ))}
+    </>
   );
 }
 
