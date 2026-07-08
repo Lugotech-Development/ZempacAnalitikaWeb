@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { Manrope } from 'next/font/google';
 import './globals.css';
+import { AnalyticsTracker } from '@/components/analytics-tracker';
 
 const manrope = Manrope({
   subsets: ['latin'],
@@ -17,6 +18,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="es" className={manrope.variable}>
       <body suppressHydrationWarning className="min-h-screen bg-surface text-ink antialiased">
+        <AnalyticsTracker />
         {children}
       </body>
     </html>

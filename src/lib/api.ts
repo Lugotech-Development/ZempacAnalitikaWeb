@@ -3,6 +3,8 @@
 // if that fails we emit a session-expired event and throw UnauthorizedError.
 import { emitSessionExpired } from './session-events';
 import { detectAccessBlock, emitAccessBlocked, type AccessBlock } from './access-block-events';
+import { analytics } from './analytics/analytics';
+import { AnalyticsEvents } from './analytics/events';
 
 import type { Marca, RptCuadreCajaLinea, RptCuentasPorCobrar, RptCxcDetalleFactura, RptDevolucion, RptLote, RptLoteCondensadoLinea, RptPantallaPrincipal, RptProductoMasVendido, RptProductoPorLote, RptVenta, RptVentaFacturador, RptVentaProductoMarca, SessionInfo, Sucursal } from './types';
 import {
@@ -35,6 +37,8 @@ type StoredSession = {
   refreshToken: string | null;
   empresa: string;
   usuario: string;
+  userId?: number | null;
+  role?: string | null;
 };
 
 export function getSession(): StoredSession | null {
@@ -97,6 +101,40 @@ export class AccessBlockedError extends Error {
   }
 }
 
+// ─── Analytics helpers ──────────────────────────────────────────────────────
+
+function normalizeEndpoint(path: string): string {
+  const noQuery = path.split('?')[0];
+  return noQuery.replace(/\/\d+/g, '/:id');
+}
+
+function trackApiError(path: string, e: unknown, latencyMs: number): void {
+  // 401 (session flow) and access blocks are tracked separately — don't double-signal.
+  if (e instanceof UnauthorizedError || e instanceof AccessBlockedError) return;
+  let status = 0;
+  let kind = 'network';
+  if (e instanceof UpstreamApiError) {
+    status = e.status;
+    kind = 'http';
+  }
+  analytics.track(AnalyticsEvents.apiError, {
+    endpoint: normalizeEndpoint(path),
+    status,
+    error_kind: kind,
+    latency_ms: latencyMs,
+    message: e instanceof Error ? e.message : String(e)
+  });
+}
+
+function asNumberOrNull(v: unknown): number | null {
+  if (typeof v === 'number') return v;
+  if (typeof v === 'string') {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  }
+  return null;
+}
+
 // ─── Token refresh ──────────────────────────────────────────────────────────
 
 let refreshPromise: Promise<string | null> | null = null;
@@ -106,6 +144,7 @@ async function tryRefresh(): Promise<string | null> {
   if (!session?.refreshToken) return null;
   if (refreshPromise) return refreshPromise;
   refreshPromise = (async () => {
+    const started = performance.now();
     try {
       const res = await fetch(`${UPSTREAM}/api/auth/refresh`, {
         method: 'POST',
@@ -113,7 +152,10 @@ async function tryRefresh(): Promise<string | null> {
         body: JSON.stringify({ refreshToken: session.refreshToken }),
         signal: AbortSignal.timeout(5000)
       });
-      if (!res.ok) return null;
+      if (!res.ok) {
+        analytics.track(AnalyticsEvents.tokenRefresh, { success: false, ms: Math.round(performance.now() - started) });
+        return null;
+      }
       const body = (await res.json()) as Record<string, unknown>;
       const newToken = body.token ? String(body.token) : null;
       if (newToken) {
@@ -123,8 +165,10 @@ async function tryRefresh(): Promise<string | null> {
           refreshToken: body.refreshToken ? String(body.refreshToken) : session.refreshToken
         });
       }
+      analytics.track(AnalyticsEvents.tokenRefresh, { success: newToken != null, ms: Math.round(performance.now() - started) });
       return newToken;
     } catch {
+      analytics.track(AnalyticsEvents.tokenRefresh, { success: false, ms: Math.round(performance.now() - started) });
       return null;
     } finally {
       refreshPromise = null;
@@ -144,7 +188,16 @@ let accessBlocked: AccessBlock | null = null;
 // Latch a freshly-detected block and hand it to the global modal, then throw so
 // the calling report stops. Idempotent — safe to call again while already blocked.
 function raiseAccessBlock(block: AccessBlock): never {
+  const isNew = accessBlocked === null;
   accessBlocked = block;
+  if (isNew) {
+    analytics.track(AnalyticsEvents.accessBlocked, {
+      code: block.code,
+      empresa_nombre: block.empresaNombre,
+      fecha_vencimiento: block.fechaVencimiento,
+      screen: analytics.currentScreen
+    });
+  }
   emitAccessBlocked(block);
   throw new AccessBlockedError(block);
 }
@@ -174,6 +227,7 @@ async function authFetch(path: string, init?: RequestInit): Promise<Response> {
     const newToken = await tryRefresh();
     if (!newToken) {
       clearSession();
+      analytics.track(AnalyticsEvents.sessionExpired, { screen: analytics.currentScreen, endpoint: normalizeEndpoint(path) });
       emitSessionExpired();
       throw new UnauthorizedError();
     }
@@ -185,6 +239,7 @@ async function authFetch(path: string, init?: RequestInit): Promise<Response> {
     }
     if (res.status === 401) {
       clearSession();
+      analytics.track(AnalyticsEvents.sessionExpired, { screen: analytics.currentScreen, endpoint: normalizeEndpoint(path) });
       emitSessionExpired();
       throw new UnauthorizedError();
     }
@@ -203,31 +258,59 @@ async function getJson<T>(path: string, mapper: (data: unknown) => T, search?: R
     const str = qs.toString();
     if (str) fullPath += `?${str}`;
   }
-  // DEBUG: Log the full URL being fetched
-  console.log('Fetching URL:', `${UPSTREAM}${fullPath}`);
-  const res = await authFetch(fullPath);
-  if (res.status === 204) return [] as unknown as T;
-  let body: unknown;
+  const started = performance.now();
   try {
-    body = await res.json();
-  } catch {
-    body = null;
+    const res = await authFetch(fullPath);
+    const latency = Math.round(performance.now() - started);
+    if (res.status === 204) {
+      analytics.trackSampled(AnalyticsEvents.apiRequest, {
+        endpoint: normalizeEndpoint(path),
+        method: 'GET',
+        status: 204,
+        latency_ms: latency,
+        from_cache: false,
+        payload_bytes: 0,
+        ok: true
+      });
+      return [] as unknown as T;
+    }
+    let body: unknown;
+    try {
+      body = await res.json();
+    } catch {
+      body = null;
+    }
+    // Middleware block envelope ({ success:false, code, message }) can arrive on
+    // any status — check before the generic error path so it becomes a global
+    // AccessBlockedError (→ modal) rather than an inline "server error".
+    const block = detectAccessBlock(res.status, body);
+    if (block) raiseAccessBlock(block);
+    if (!res.ok) {
+      const msg = (body as { error?: string; message?: string })?.error ?? (body as { message?: string })?.message ?? `Error inesperado (${res.status})`;
+      throw new UpstreamApiError(res.status, msg);
+    }
+    const result = mapper(body);
+    analytics.trackSampled(AnalyticsEvents.apiRequest, {
+      endpoint: normalizeEndpoint(path),
+      method: 'GET',
+      status: res.status,
+      latency_ms: latency,
+      from_cache: false,
+      payload_bytes: Number(res.headers.get('content-length')) || null,
+      ok: true
+    });
+    return result;
+  } catch (e) {
+    trackApiError(path, e, Math.round(performance.now() - started));
+    throw e;
   }
-  // Middleware block envelope ({ success:false, code, message }) can arrive on
-  // any status — check before the generic error path so it becomes a global
-  // AccessBlockedError (→ modal) rather than an inline "server error".
-  const block = detectAccessBlock(res.status, body);
-  if (block) raiseAccessBlock(block);
-  if (!res.ok) {
-    const msg = (body as { error?: string; message?: string })?.error ?? (body as { message?: string })?.message ?? `Error inesperado (${res.status})`;
-    throw new UpstreamApiError(res.status, msg);
-  }
-  return mapper(body);
 }
 
 // ─── Public API ─────────────────────────────────────────────────────────────
 
 export async function apiLogin(input: { empresa: string; usuario: string; password: string }): Promise<SessionInfo> {
+  analytics.track(AnalyticsEvents.loginAttempt, { empresa: input.empresa, remember_session: true });
+  const started = performance.now();
   let res: Response;
   try {
     res = await fetch(`${UPSTREAM}/api/Auth/login`, {
@@ -241,6 +324,7 @@ export async function apiLogin(input: { empresa: string; usuario: string; passwo
       })
     });
   } catch {
+    analytics.track(AnalyticsEvents.loginFailure, { empresa: input.empresa, error_code: 'network', error_message: 'No se pudo conectar con el servidor' });
     throw new NetworkError();
   }
   let body: unknown;
@@ -250,29 +334,46 @@ export async function apiLogin(input: { empresa: string; usuario: string; passwo
     body = null;
   }
   if (res.status === 401) {
-    throw new UpstreamApiError(401, (body as { detail?: string })?.detail ?? 'Credenciales incorrectas');
+    const msg = (body as { detail?: string })?.detail ?? 'Credenciales incorrectas';
+    analytics.track(AnalyticsEvents.loginFailure, { empresa: input.empresa, error_code: 401, error_message: msg });
+    throw new UpstreamApiError(401, msg);
   }
   if (res.status === 403) {
-    throw new UpstreamApiError(403, (body as { message?: string })?.message ?? 'Error de acceso. Por favor, contacte al equipo de soporte.');
+    const msg = (body as { message?: string })?.message ?? 'Error de acceso. Por favor, contacte al equipo de soporte.';
+    analytics.track(AnalyticsEvents.loginFailure, { empresa: input.empresa, error_code: 403, error_message: msg });
+    throw new UpstreamApiError(403, msg);
   }
   if (!res.ok || !body) {
+    analytics.track(AnalyticsEvents.loginFailure, { empresa: input.empresa, error_code: res.status, error_message: 'Error de autenticación' });
     throw new UpstreamApiError(res.status, 'Error de autenticación');
   }
   const b = body as Record<string, unknown>;
   const token = String(b.token ?? '');
   if (!token) throw new UpstreamApiError(res.status, 'Respuesta inválida del servidor');
+  const userId = asNumberOrNull(b.userId ?? b.UserId ?? b.id);
+  const role = b.role != null ? String(b.role) : b.Role != null ? String(b.Role) : null;
   const session: StoredSession = {
     token,
     refreshToken: b.refreshToken ? String(b.refreshToken) : null,
     empresa: b.empresa ? String(b.empresa) : input.empresa,
-    usuario: b.username ? String(b.username) : input.usuario
+    usuario: b.username ? String(b.username) : input.usuario,
+    userId,
+    role
   };
   setSession(session);
+  analytics.identify({ userId, username: session.usuario, empresa: session.empresa, role });
+  analytics.track(AnalyticsEvents.loginSuccess, {
+    empresa: session.empresa,
+    user_id: userId,
+    role,
+    ms_to_authenticate: Math.round(performance.now() - started)
+  });
   return { empresa: session.empresa, usuario: session.usuario };
 }
 
 export function apiLogout(): void {
   const session = getSession();
+  analytics.track(AnalyticsEvents.logout, { reason: 'user' });
   if (session?.refreshToken && session.token) {
     // Best-effort revocation — fire and forget
     fetch(`${UPSTREAM}/api/auth/revoke`, {
@@ -285,6 +386,7 @@ export function apiLogout(): void {
     }).catch(() => {});
   }
   clearSession();
+  analytics.clearIdentity();
 }
 
 export function apiMe(): SessionInfo {

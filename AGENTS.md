@@ -19,6 +19,7 @@ The sibling Flutter project is the source of truth for:
 | Screen layouts      | `lib/screens/**`                                                                                                   |
 | Color tokens        | `lib/core/theme/app_colors.dart`                                                                                   |
 | Mock fixture shapes | `lib/services/mock_data_service.dart`                                                                              |
+| Telemetry/analytics | [`TELEMETRY.md`](TELEMETRY.md) — shared spec, mirror of [`../ReportesZempacApp/TELEMETRY.md`](../ReportesZempacApp/TELEMETRY.md) |
 
 When adding a new report or feature, **always read the Flutter screen first** so the two stay in parity. UI strings, metric grouping, sort order, icon choices, and color semantics should match. When in doubt, **update both `AGENTS.md` files in lockstep** so future agents inherit the same context.
 
@@ -97,6 +98,10 @@ Every report screen consumes data through `useApi(key, fetcher)` from [`src/lib/
 - **Cache keys** are short, human-readable: `'rpt:principal'`, `'rpt:ventas'`, `'rpt:devoluciones'`, `'rpt:productos'`, `'rpt:cuadre-caja'`, `'empresas:sucursales'`.
 
 Always pass a stable string key to `useApi`. Do not generate keys with `Math.random()` or `Date.now()`.
+
+## Telemetry / analytics
+
+Event-based telemetry mirroring the Flutter app — shared contract in [`TELEMETRY.md`](TELEMETRY.md), sibling engine at `../ReportesZempacApp/lib/services/analytics/`. Engine in [`src/lib/analytics/`](src/lib/analytics/): facade `analytics`, localStorage-backed durable queue, `CustomTelemetrySink` → `POST /api/telemetry/events` (`fetch({keepalive})` + `navigator.sendBeacon` on pagehide), remote kill-switch/sampling from `GET /api/Configuracion/app`. Bootstrap + screen tracking in [`src/components/analytics-tracker.tsx`](src/components/analytics-tracker.tsx) — mounted once in the root `layout.tsx`; `usePathname` drives `screen_view`/`screen_leave` with dwell/active timing. Instrumented centrally: auth events + `api_request`/`api_error` in `src/lib/api.ts`, `report_loaded` in `src/lib/use-api.ts`, `access_blocked`/`session_expired` at their emit sites, `app_error` via `window` error handlers. Login now captures/persists `userId`+`role` on the stored session. **The ingest endpoint must be CORS-enabled** — this static site calls it directly from the browser. Fail-open; never throws. **GA4 is wired** via `GA4Sink` ([`src/lib/analytics/ga4-sink.ts`](src/lib/analytics/ga4-sink.ts), measurementId `G-NP36YN8LYM`, registered from the tracker; `firebase.ts` now inits only the app for Analytics — the unused Auth/Firestore eager init was removed to keep the bundle lean). Pending (low priority): per-page interaction events (filters, detail, tabs). Keep this in lockstep with the Flutter side.
 
 ## Design system rules
 
