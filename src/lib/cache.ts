@@ -60,14 +60,24 @@ export function subscribe(key: string, cb: Subscriber): () => void {
 /**
  * Fetch with single-flight dedup. If a fetch for this key is already in
  * progress, returns the same promise.
+ *
+ * [onNetworkLoad] runs exactly once per REAL network fetch (deduped callers
+ * return early and never reach it), so analytics like `report_loaded` fire once
+ * per load rather than once per hook invocation — this is what prevents the
+ * double-count under React Strict Mode or two hooks sharing a key.
  */
-export async function fetchAndCache<T>(key: string, fetcher: () => Promise<T>): Promise<T> {
+export async function fetchAndCache<T>(
+  key: string,
+  fetcher: () => Promise<T>,
+  onNetworkLoad?: (data: T) => void
+): Promise<T> {
   const existing = inflight.get(key);
   if (existing) return existing as Promise<T>;
   const p = (async () => {
     try {
       const data = await fetcher();
       setCached(key, data);
+      onNetworkLoad?.(data);
       return data;
     } finally {
       inflight.delete(key);

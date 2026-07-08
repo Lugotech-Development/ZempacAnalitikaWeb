@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AccessBlockedError, UnauthorizedError, classifyError, type ErrorVariant } from './api';
 import { fetchAndCache, getCached, subscribe } from './cache';
+import { analytics } from './analytics/analytics';
+import { AnalyticsEvents } from './analytics/events';
 
 type State<T> =
   | { status: 'loading'; data: null; error: null; errorVariant: null }
@@ -61,8 +63,19 @@ export function useApi<T>(key: string, fetcher: () => Promise<T>) {
 
   const load = useCallback(async () => {
     setIsValidating(true);
+    const started = performance.now();
     try {
-      const data = await fetchAndCache(key, () => fetcherRef.current());
+      // report_loaded is emitted from the network-load callback so it fires
+      // once per actual fetch, not once per (possibly deduped) hook call.
+      const data = await fetchAndCache(key, () => fetcherRef.current(), (loaded) => {
+        analytics.track(AnalyticsEvents.reportLoaded, {
+          report: key.replace(/^rpt:/, ''),
+          row_count: Array.isArray(loaded) ? loaded.length : 1,
+          latency_ms: Math.round(performance.now() - started),
+          source: 'network'
+        });
+        analytics.markReachedData();
+      });
       setState({
         status: 'success',
         data,
