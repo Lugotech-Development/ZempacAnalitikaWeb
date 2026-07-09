@@ -6,7 +6,7 @@ import { detectAccessBlock, emitAccessBlocked, type AccessBlock } from './access
 import { analytics } from './analytics/analytics';
 import { AnalyticsEvents } from './analytics/events';
 
-import type { Marca, RptCuadreCajaLinea, RptCuentasPorCobrar, RptCxcDetalleFactura, RptDevolucion, RptLote, RptLoteCondensadoLinea, RptPantallaPrincipal, RptProductoMasVendido, RptProductoPorLote, RptVenta, RptVentaFacturador, RptVentaProductoMarca, SessionInfo, Sucursal } from './types';
+import type { Marca, ProductosNegativosPage, RptCuadreCajaLinea, RptCuentasPorCobrar, RptCxcDetalleFactura, RptDevolucion, RptLote, RptLoteCondensadoLinea, RptPantallaPrincipal, RptProductoMasVendido, RptProductoPorLote, RptVenta, RptVentaFacturador, RptVentaProductoMarca, SessionInfo, Sucursal } from './types';
 import {
   parseCuadreLinea,
   parseCxcAntiguedad,
@@ -17,6 +17,7 @@ import {
   parseLote,
   parseLoteCondensadoLinea,
   parseProductoPorLote,
+  parseProductosNegativosPage,
   parsePantallaPrincipal,
   parseProducto,
   parseSucursal,
@@ -445,6 +446,18 @@ export const apiAnaliticaProductosPorLote = (lote: number, orderBy: number) =>
     data => (Array.isArray(data) ? data.map(r => parseProductoPorLote(r as Record<string, unknown>)) : []),
     { orderBy: String(orderBy) }
   );
+
+// ─── Productos Negativos ──────────────────────────────────────────────────
+// Server-paginated report of products with negative stock. `sucursal` is
+// required (> 0). Response is an envelope { pagina, porPagina, totalRegistros,
+// totalPaginas, data } — parsed in types.ts so this stays a thin fetcher.
+
+export const apiProductosNegativos = (input: { sucursal: number; pagina: number; porPagina: number }) =>
+  getJson<ProductosNegativosPage>('/api/reportes/analitica/productos-negativos', parseProductosNegativosPage, {
+    sucursal: String(input.sucursal),
+    pagina: String(input.pagina),
+    porPagina: String(input.porPagina)
+  });
 
 // ─── Cuentas por Cobrar (CxC) ────────────────────────────────────────────
 // The page consumes 3 sub-endpoints. We fetch them in parallel through a

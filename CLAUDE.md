@@ -25,3 +25,8 @@ Read **[AGENTS.md](AGENTS.md)** first — it is the authoritative context file f
 - Every visible string is Spanish. `tabular-nums` on all money/percent/count/date displays.
 - `npm run build` must pass with TypeScript strict (no `any`, no `@ts-ignore`).
 - Remove debug `console.log`s before finishing.
+
+## Commits
+
+- When providing a commit message, never append the `Co-Authored-By: Claude …` trailer
+  or any "Generated with Claude" line — just the subject and body.
