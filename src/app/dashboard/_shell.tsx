@@ -1,6 +1,6 @@
 'use client';
 
-const APP_VERSION = '1.7.1';
+const APP_VERSION = '1.9.0';
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
@@ -31,7 +31,8 @@ const NAV: { href: string; label: string; icon: IconName }[] = [
     icon: 'point_of_sale'
   },
   { href: '/dashboard/ventas-producto-marca', label: 'Ventas por Marca', icon: 'sell' },
-  { href: '/dashboard/ventas-facturador', label: 'Ventas por Facturador', icon: 'badge' }
+  { href: '/dashboard/ventas-facturador', label: 'Ventas por Facturador', icon: 'badge' },
+  { href: '/dashboard/productos-negativos', label: 'Productos Negativos', icon: 'warning' }
 ];
 
 export default function DashboardShell({ children, session }: { children: React.ReactNode; session: SessionInfo }) {

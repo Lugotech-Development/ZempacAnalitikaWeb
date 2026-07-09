@@ -79,6 +79,13 @@ const REPORTS: Hit[] = [
     subtitle: 'Conciliación diaria',
     href: '/dashboard/cuadre-caja',
     icon: 'point_of_sale'
+  },
+  {
+    type: 'Reporte',
+    title: 'Productos Negativos',
+    subtitle: 'Existencias negativas por sucursal',
+    href: '/dashboard/productos-negativos',
+    icon: 'warning'
   }
 ];
 

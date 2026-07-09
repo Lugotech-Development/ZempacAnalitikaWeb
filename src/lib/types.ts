@@ -159,6 +159,31 @@ export type RptProductoPorLote = {
 export const PRODUCTO_LOTE_ORDER = { CODIGO: 1, NOMBRE: 2, VENDIDO: 3 } as const;
 export type ProductoLoteOrder = (typeof PRODUCTO_LOTE_ORDER)[keyof typeof PRODUCTO_LOTE_ORDER];
 
+// ─── Productos Negativos ────────────────────────────────────────────────
+// Products whose stock (existencia) has gone negative, per sucursal. Comes
+// straight from a stored procedure (no DTO), so keys are PascalCase and the
+// response is a paginated envelope — unlike the other array reports. Shapes
+// derived by hitting the live endpoint. `sucursal` is required (> 0).
+
+export type RptProductoNegativo = {
+  /** Product code (DocNum in the SP). Render raw — it's a code, not a quantity. */
+  docNum: number | null;
+  nombre: string | null;
+  /** Warehouse number within the sucursal. */
+  almacen: number | null;
+  /** Stock quantity — negative by definition for this report. */
+  existencia: number | null;
+};
+
+/** Server-paginated envelope for /reportes/analitica/productos-negativos. */
+export type ProductosNegativosPage = {
+  pagina: number;
+  porPagina: number;
+  totalRegistros: number;
+  totalPaginas: number;
+  data: RptProductoNegativo[];
+};
+
 // ─── Cuentas por Cobrar (CxC) ───────────────────────────────────────────
 // Field names mirror the live API response (PascalCase). The OpenAPI doc
 // only declares responses as `array of object` with no schema, so these
@@ -362,6 +387,28 @@ export const parseLoteCondensadoLinea = (j: J): RptLoteCondensadoLinea => ({
   loteEstatusNombre: str(j.LoteEstatusNombre),
   ncf: str(j.NCF)
 });
+
+export const parseProductoNegativo = (j: J): RptProductoNegativo => ({
+  docNum: num(j.DocNum ?? j.docNum),
+  nombre: str(j.Nombre ?? j.nombre),
+  almacen: num(j.Almacen ?? j.almacen),
+  existencia: num(j.Existencia ?? j.existencia)
+});
+
+/** Parses the paginated envelope, tolerant to a missing/empty body. Row-level
+ *  `TotalRegistros` (an SP artifact repeated on every row) is ignored in favor
+ *  of the envelope's `totalRegistros`. */
+export const parseProductosNegativosPage = (data: unknown): ProductosNegativosPage => {
+  const d = (data && typeof data === 'object' ? data : {}) as J;
+  const rows = Array.isArray(d.data) ? d.data : [];
+  return {
+    pagina: num(d.pagina) ?? 1,
+    porPagina: num(d.porPagina) ?? 0,
+    totalRegistros: num(d.totalRegistros) ?? rows.length,
+    totalPaginas: num(d.totalPaginas) ?? (rows.length ? 1 : 0),
+    data: rows.map(r => parseProductoNegativo(r as J))
+  };
+};
 
 export const parseProductoPorLote = (j: J): RptProductoPorLote => ({
   codigo: num(j.Codigo),
