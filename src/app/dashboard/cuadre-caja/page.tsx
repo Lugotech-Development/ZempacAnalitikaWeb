@@ -3,10 +3,11 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Icon, type IconName } from '@/components/icon';
 import { PageHeader } from '@/components/page-header';
-import { EyebrowLabel } from '@/components/common';
+import { EyebrowLabel, LockedFilter } from '@/components/common';
 import { EmptyState, ErrorState, LoadingBar, LoadingState } from '@/components/states';
 import { fmtInt, fmtMoney, toIsoEndOfDay, toIsoStartOfDay } from '@/lib/format';
 import { apiAnaliticaLoteCondensado, apiAnaliticaLotes, apiAnaliticaProductosPorLote, apiCuadreCaja, apiSucursales } from '@/lib/api';
+import { forcedNumber } from '@/lib/permissions';
 import { useApi } from '@/lib/use-api';
 import { cuadreCleanDesc, cuadreIsDivider, cuadreIsSectionHeader, cuadreIsSpacer, cuadreIsSubItem, LOTE_ESTATUS, PRODUCTO_LOTE_ORDER, type ProductoLoteOrder, type RptCuadreCajaLinea, type RptLote, type RptLoteCondensadoLinea, type RptProductoPorLote, type Sucursal } from '@/lib/types';
 
@@ -57,12 +58,15 @@ export default function CuadreCajaPage() {
   const [sucursalOpen, setSucursalOpen] = useState(false);
   const [tab, setTab] = useState<TabId>('general');
 
-  // Pick the first sucursal when the list arrives.
+  // If the profile fixes the sucursal (parametrosSP), lock the picker to it.
+  const forcedSucursal = forcedNumber('analitica-lote-condensado', ['sucursal', 'sucursalId', 'idSucursal']);
+
+  // Pick the forced sucursal, else the first, when the list arrives.
   useEffect(() => {
     if (sucursalId == null && sucursalesQ.status === 'success' && sucursalesQ.data && sucursalesQ.data.length > 0) {
-      setSucursalId(sucursalesQ.data[0].id);
+      setSucursalId(forcedSucursal ?? sucursalesQ.data[0].id);
     }
-  }, [sucursalesQ.status, sucursalesQ.data, sucursalId]);
+  }, [sucursalesQ.status, sucursalesQ.data, sucursalId, forcedSucursal]);
 
   const range = useMemo(() => computeRange(preset), [preset]);
 
@@ -95,6 +99,7 @@ export default function CuadreCajaPage() {
                   setSucursalId(id);
                   setSucursalOpen(false);
                 }}
+                sucursalLocked={forcedSucursal != null}
                 preset={preset}
                 setPreset={setPreset}
               />
@@ -570,6 +575,7 @@ function Filters({
   sucursalOpen,
   setSucursalOpen,
   onSelectSucursal,
+  sucursalLocked,
   preset,
   setPreset
 }: {
@@ -578,41 +584,46 @@ function Filters({
   sucursalOpen: boolean;
   setSucursalOpen: (v: boolean) => void;
   onSelectSucursal: (id: number) => void;
+  sucursalLocked: boolean;
   preset: PresetId;
   setPreset: (p: PresetId) => void;
 }) {
   return (
     <div className="card p-4 sm:p-5 flex flex-col lg:flex-row lg:items-center gap-4">
-      <div className="relative">
-        <button
-          type="button"
-          onClick={() => setSucursalOpen(!sucursalOpen)}
-          onBlur={() => setTimeout(() => setSucursalOpen(false), 120)}
-          className="flex items-center gap-3 rounded-xl border border-surface-mid bg-surface-lowest px-4 py-2.5 text-sm font-bold text-ink min-w-[240px]">
-          <Icon name="store" size={16} className="text-primary" />
-          <span className="flex-1 text-left truncate">{sucursalActual?.nombre ?? 'Selecciona sucursal'}</span>
-          <Icon name="expand_more" size={14} className="text-outline" />
-        </button>
-        {sucursalOpen && (
-          <ul className="absolute left-0 right-0 mt-2 card-bordered p-1 z-20 max-h-72 overflow-y-auto zsb-scroll">
-            {sucursales.map(s => {
-              const active = s.id === sucursalActual?.id;
-              return (
-                <li key={s.id}>
-                  <button
-                    type="button"
-                    onMouseDown={() => onSelectSucursal(s.id)}
-                    className={`flex items-center gap-2 w-full px-3 py-2 rounded-lg text-sm font-semibold text-left ${active ? 'bg-primary/10 text-primary' : 'text-ink hover:bg-surface-low'}`}>
-                    <Icon name="store" size={14} />
-                    <span className="flex-1 truncate">{s.nombre}</span>
-                    {active && <Icon name="check" size={14} />}
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </div>
+      {sucursalLocked ? (
+        <LockedFilter icon="store" value={sucursalActual?.nombre ?? '—'} />
+      ) : (
+        <div className="relative">
+          <button
+            type="button"
+            onClick={() => setSucursalOpen(!sucursalOpen)}
+            onBlur={() => setTimeout(() => setSucursalOpen(false), 120)}
+            className="flex items-center gap-3 rounded-xl border border-surface-mid bg-surface-lowest px-4 py-2.5 text-sm font-bold text-ink min-w-[240px]">
+            <Icon name="store" size={16} className="text-primary" />
+            <span className="flex-1 text-left truncate">{sucursalActual?.nombre ?? 'Selecciona sucursal'}</span>
+            <Icon name="expand_more" size={14} className="text-outline" />
+          </button>
+          {sucursalOpen && (
+            <ul className="absolute left-0 right-0 mt-2 card-bordered p-1 z-20 max-h-72 overflow-y-auto zsb-scroll">
+              {sucursales.map(s => {
+                const active = s.id === sucursalActual?.id;
+                return (
+                  <li key={s.id}>
+                    <button
+                      type="button"
+                      onMouseDown={() => onSelectSucursal(s.id)}
+                      className={`flex items-center gap-2 w-full px-3 py-2 rounded-lg text-sm font-semibold text-left ${active ? 'bg-primary/10 text-primary' : 'text-ink hover:bg-surface-low'}`}>
+                      <Icon name="store" size={14} />
+                      <span className="flex-1 truncate">{s.nombre}</span>
+                      {active && <Icon name="check" size={14} />}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+      )}
 
       <div className="flex items-center gap-2 overflow-x-auto -mx-1 px-1 lg:mx-0 lg:px-0">
         <Icon name="calendar_today" size={16} className="text-outline shrink-0 hidden sm:block" />

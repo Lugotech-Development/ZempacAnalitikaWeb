@@ -43,6 +43,8 @@ import ShowChart from '@material-symbols/svg-400/outlined/show_chart.svg';
 import GpsFixed from '@material-symbols/svg-400/outlined/location_searching.svg';
 import Sell from '@material-symbols/svg-400/outlined/sell.svg';
 import Check from '@material-symbols/svg-400/outlined/check.svg';
+import CheckCircle from '@material-symbols/svg-400/outlined/check_circle.svg';
+import RadioButtonUnchecked from '@material-symbols/svg-400/outlined/radio_button_unchecked.svg';
 import CalendarMonth from '@material-symbols/svg-400/outlined/calendar_month.svg';
 import DateRange from '@material-symbols/svg-400/outlined/date_range.svg';
 import Download from '@material-symbols/svg-400/outlined/download.svg';
@@ -114,6 +116,8 @@ const REGISTRY = {
   gps_fixed: GpsFixed,
   sell: Sell,
   check: Check,
+  check_circle: CheckCircle,
+  radio_button_unchecked: RadioButtonUnchecked,
   calendar_month: CalendarMonth,
   date_range: DateRange,
   download: Download,

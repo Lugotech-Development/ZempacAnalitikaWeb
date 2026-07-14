@@ -40,7 +40,63 @@ type StoredSession = {
   usuario: string;
   userId?: number | null;
   role?: string | null;
+  perfilNombre?: string | null;
+  /** Allowed report keys, lower-cased. `null`/absent = full access. */
+  reportesPermitidos?: string[] | null;
+  /** Backend-forced SP params, keyed by lower-cased reportKey (Externo users). */
+  parametrosSP?: Record<string, Record<string, unknown>> | null;
+  expiresAt?: string | null;
 };
+
+/** Parse `reportesPermitidos` → lower-cased list, or `null` (unrestricted). */
+function parseReportList(v: unknown): string[] | null {
+  return Array.isArray(v) ? v.map(x => String(x).toLowerCase()) : null;
+}
+
+/** Parse `parametrosSP` (object of reportKey → params); keys lower-cased. Each
+ *  value may be an object or a JSON-encoded string (the API schema types the
+ *  values as `string`) — both are handled. */
+function parseParametrosSP(v: unknown): Record<string, Record<string, unknown>> | null {
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return null;
+  const out: Record<string, Record<string, unknown>> = {};
+  for (const [k, val] of Object.entries(v as Record<string, unknown>)) {
+    let decoded: unknown = val;
+    if (typeof decoded === 'string' && decoded.length > 0) {
+      try {
+        decoded = JSON.parse(decoded);
+      } catch {
+        /* leave as string → skipped below */
+      }
+    }
+    if (decoded && typeof decoded === 'object' && !Array.isArray(decoded)) {
+      out[k.toLowerCase()] = decoded as Record<string, unknown>;
+    }
+  }
+  return out;
+}
+
+/**
+ * A backend-forced numeric SP param for [reportKey] (Externo users), read
+ * straight from the stored session so it applies regardless of what the page
+ * passes — a forced value can't be bypassed. Tries each name in [aliases]
+ * (exact then case-insensitive). Mirrors `permissions.ts` but kept local to
+ * avoid an api ↔ permissions import cycle.
+ */
+function forcedParamNumber(reportKey: string, aliases: string[]): number | null {
+  const params = getSession()?.parametrosSP?.[reportKey.toLowerCase()];
+  if (!params) return null;
+  const lower: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(params)) lower[k.toLowerCase()] = v;
+  for (const a of aliases) {
+    const v = a in params ? params[a] : lower[a.toLowerCase()];
+    if (typeof v === 'number') return v;
+    if (typeof v === 'string') {
+      const n = Number(v);
+      if (Number.isFinite(n)) return n;
+    }
+  }
+  return null;
+}
 
 export function getSession(): StoredSession | null {
   if (typeof window === 'undefined') return null;
@@ -127,6 +183,28 @@ function trackApiError(path: string, e: unknown, latencyMs: number): void {
   });
 }
 
+/**
+ * Builds a login error message from the response: a block envelope's message
+ * (e.g. a lockout), then `message`/`detail`, then a status fallback — plus a
+ * "te quedan N intentos" hint when the backend reports remaining attempts
+ * before locking the account. Tolerant of a non-JSON / null body.
+ */
+function loginErrorMessage(status: number, body: unknown): string {
+  const b = (body && typeof body === 'object' ? body : {}) as Record<string, unknown>;
+  const block = detectAccessBlock(status, body);
+  let msg =
+    block?.message ??
+    (typeof b.message === 'string' && b.message ? b.message : undefined) ??
+    (typeof b.detail === 'string' && b.detail ? b.detail : undefined) ??
+    (status === 401 ? 'Credenciales incorrectas' : status === 403 ? 'Error de acceso. Por favor, contacte al equipo de soporte.' : 'Error de autenticación');
+  const raw = b.intentosRestantes ?? b.intentos_restantes;
+  const n = typeof raw === 'number' ? raw : typeof raw === 'string' ? Number(raw) : NaN;
+  if (Number.isFinite(n) && n >= 0) {
+    msg = `${msg} Te ${n === 1 ? 'queda' : 'quedan'} ${n} intento${n === 1 ? '' : 's'}.`;
+  }
+  return msg;
+}
+
 function asNumberOrNull(v: unknown): number | null {
   if (typeof v === 'number') return v;
   if (typeof v === 'string') {
@@ -160,11 +238,20 @@ async function tryRefresh(): Promise<string | null> {
       const body = (await res.json()) as Record<string, unknown>;
       const newToken = body.token ? String(body.token) : null;
       if (newToken) {
-        setSession({
+        // Refresh also carries the current permission payload. Only overwrite a
+        // field when the key is present, so an abbreviated refresh never drops
+        // the user's permissions.
+        const next: StoredSession = {
           ...session,
           token: newToken,
           refreshToken: body.refreshToken ? String(body.refreshToken) : session.refreshToken
-        });
+        };
+        if ('role' in body || 'Role' in body) next.role = body.role != null ? String(body.role) : body.Role != null ? String(body.Role) : null;
+        if ('perfilNombre' in body) next.perfilNombre = body.perfilNombre != null ? String(body.perfilNombre) : null;
+        if ('reportesPermitidos' in body) next.reportesPermitidos = parseReportList(body.reportesPermitidos);
+        if ('parametrosSP' in body) next.parametrosSP = parseParametrosSP(body.parametrosSP);
+        if ('expiresAt' in body) next.expiresAt = body.expiresAt != null ? String(body.expiresAt) : null;
+        setSession(next);
       }
       analytics.track(AnalyticsEvents.tokenRefresh, { success: newToken != null, ms: Math.round(performance.now() - started) });
       return newToken;
@@ -334,19 +421,13 @@ export async function apiLogin(input: { empresa: string; usuario: string; passwo
   } catch {
     body = null;
   }
-  if (res.status === 401) {
-    const msg = (body as { detail?: string })?.detail ?? 'Credenciales incorrectas';
-    analytics.track(AnalyticsEvents.loginFailure, { empresa: input.empresa, error_code: 401, error_message: msg });
-    throw new UpstreamApiError(401, msg);
-  }
-  if (res.status === 403) {
-    const msg = (body as { message?: string })?.message ?? 'Error de acceso. Por favor, contacte al equipo de soporte.';
-    analytics.track(AnalyticsEvents.loginFailure, { empresa: input.empresa, error_code: 403, error_message: msg });
-    throw new UpstreamApiError(403, msg);
-  }
   if (!res.ok || !body) {
-    analytics.track(AnalyticsEvents.loginFailure, { empresa: input.empresa, error_code: res.status, error_message: 'Error de autenticación' });
-    throw new UpstreamApiError(res.status, 'Error de autenticación');
+    // Surface the backend's own message for every failure — including a 423/429
+    // lockout after repeated failed passwords (detected via the block envelope
+    // too), with a remaining-attempts hint when provided.
+    const msg = loginErrorMessage(res.status, body);
+    analytics.track(AnalyticsEvents.loginFailure, { empresa: input.empresa, error_code: res.status, error_message: msg });
+    throw new UpstreamApiError(res.status, msg);
   }
   const b = body as Record<string, unknown>;
   const token = String(b.token ?? '');
@@ -359,7 +440,11 @@ export async function apiLogin(input: { empresa: string; usuario: string; passwo
     empresa: b.empresa ? String(b.empresa) : input.empresa,
     usuario: b.username ? String(b.username) : input.usuario,
     userId,
-    role
+    role,
+    perfilNombre: b.perfilNombre != null ? String(b.perfilNombre) : null,
+    reportesPermitidos: parseReportList(b.reportesPermitidos),
+    parametrosSP: parseParametrosSP(b.parametrosSP),
+    expiresAt: b.expiresAt != null ? String(b.expiresAt) : null
   };
   setSession(session);
   analytics.identify({ userId, username: session.usuario, empresa: session.empresa, role });
@@ -390,6 +475,34 @@ export function apiLogout(): void {
   analytics.clearIdentity();
 }
 
+/**
+ * Changes the signed-in user's password. Endpoint/shape are provisional and
+ * must be confirmed with the backend (plan coordination point #5). Resolves on
+ * success; throws `UpstreamApiError` carrying the backend message on failure.
+ */
+export async function apiChangePassword(input: { currentPassword: string; newPassword: string }): Promise<void> {
+  const res = await authFetch('/api/Auth/cambiar-password', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ passwordActual: input.currentPassword, passwordNuevo: input.newPassword })
+  });
+  if (res.ok || res.status === 204) return;
+  let body: unknown;
+  try {
+    body = await res.json();
+  } catch {
+    body = null;
+  }
+  // 400 returns an RFC-7807 ProblemDetails — read message/detail/title.
+  const b = (body && typeof body === 'object' ? body : {}) as Record<string, unknown>;
+  const msg =
+    (typeof b.message === 'string' && b.message ? b.message : undefined) ??
+    (typeof b.detail === 'string' && b.detail ? b.detail : undefined) ??
+    (typeof b.title === 'string' && b.title ? b.title : undefined) ??
+    'No se pudo cambiar la contraseña.';
+  throw new UpstreamApiError(res.status, msg);
+}
+
 export function apiMe(): SessionInfo {
   const session = getSession();
   if (!session) throw new UnauthorizedError();
@@ -415,7 +528,7 @@ export const apiProductos = () =>
 
 export const apiCuadreCaja = (input: { sucursal: number; fDesde?: string; fHasta?: string }) =>
   getJson<RptCuadreCajaLinea[]>('/api/Reportes/analitica-lote-condensado', data => (Array.isArray(data) ? data.map(r => parseCuadreLinea(r as Record<string, unknown>)) : []), {
-    sucursal: String(input.sucursal),
+    sucursal: String(forcedParamNumber('analitica-lote-condensado', ['sucursal', 'sucursalId', 'idSucursal']) ?? input.sucursal),
     fDesde: input.fDesde,
     fHasta: input.fHasta
   });
@@ -454,7 +567,7 @@ export const apiAnaliticaProductosPorLote = (lote: number, orderBy: number) =>
 
 export const apiProductosNegativos = (input: { sucursal: number; pagina: number; porPagina: number }) =>
   getJson<ProductosNegativosPage>('/api/reportes/analitica/productos-negativos', parseProductosNegativosPage, {
-    sucursal: String(input.sucursal),
+    sucursal: String(forcedParamNumber('analitica-productos-negativos', ['sucursal', 'sucursalId', 'idSucursal']) ?? input.sucursal),
     pagina: String(input.pagina),
     porPagina: String(input.porPagina)
   });
@@ -527,8 +640,9 @@ export function apiMarcas(nombre?: string): Promise<Marca[]> {
 // ─── Ventas por Marca ────────────────────────────────────────────────────────
 
 export function apiVentasProductoMarca(input: { desde: string; hasta: string; marcaId?: number }): Promise<RptVentaProductoMarca[]> {
+  const marcaId = forcedParamNumber('ventas-producto-marca', ['marcaId', 'idMarca', 'marca']) ?? input.marcaId;
   const q: Record<string, string> = { desde: input.desde, hasta: input.hasta };
-  if (input.marcaId != null) q['marcaId'] = String(input.marcaId);
+  if (marcaId != null) q['marcaId'] = String(marcaId);
   return getJson<RptVentaProductoMarca[]>(
     '/api/Reportes/ventas-producto-marca',
     (data) => (Array.isArray(data) ? data.map(r => parseVentaProductoMarca(r as Record<string, unknown>)) : []),
@@ -539,8 +653,9 @@ export function apiVentasProductoMarca(input: { desde: string; hasta: string; ma
 // ─── Ventas por Facturador ───────────────────────────────────────────────────
 
 export function apiVentasFacturadorSucursal(input: { desde: string; hasta: string; sucursalId?: number }): Promise<RptVentaFacturador[]> {
+  const sucursalId = forcedParamNumber('ventas-facturador-sucursal', ['sucursal', 'sucursalId', 'idSucursal']) ?? input.sucursalId;
   const q: Record<string, string> = { desde: input.desde, hasta: input.hasta };
-  if (input.sucursalId != null) q['sucursalId'] = String(input.sucursalId);
+  if (sucursalId != null) q['sucursalId'] = String(sucursalId);
   return getJson<RptVentaFacturador[]>(
     '/api/Reportes/ventas-facturador-sucursal',
     (data) => (Array.isArray(data) ? data.map(r => parseVentaFacturador(r as Record<string, unknown>)) : []),
@@ -550,7 +665,7 @@ export function apiVentasFacturadorSucursal(input: { desde: string; hasta: strin
 
 // ─── Error classification ───────────────────────────────────────────────────
 
-export type ErrorVariant = 'session' | 'network' | 'server' | 'empty';
+export type ErrorVariant = 'session' | 'network' | 'server' | 'empty' | 'forbidden';
 
 export function classifyError(e: unknown): {
   variant: ErrorVariant;
@@ -558,7 +673,10 @@ export function classifyError(e: unknown): {
 } {
   if (e instanceof UnauthorizedError) return { variant: 'session', message: e.message };
   if (e instanceof NetworkError) return { variant: 'network', message: e.message };
-  if (e instanceof UpstreamApiError) return { variant: 'server', message: e.message };
+  // A 403 means the profile isn't allowed this report — surface it as a distinct
+  // "no autorizado" state, not a generic server error. The nav + route guard
+  // normally prevent reaching here; this covers a stale client permission view.
+  if (e instanceof UpstreamApiError) return { variant: e.status === 403 ? 'forbidden' : 'server', message: e.message };
   return {
     variant: 'server',
     message: e instanceof Error ? e.message : 'Error desconocido'

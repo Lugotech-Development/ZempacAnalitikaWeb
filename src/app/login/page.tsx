@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useState } from 'react';
 import { Icon } from '@/components/icon';
-import { ZempacLogo } from '@/components/common';
+import { ZempacLogo, LugotechCredit } from '@/components/common';
 import { apiLogin, classifyError } from '@/lib/api';
 
 export default function LoginPage() {
@@ -183,6 +183,10 @@ function LoginForm() {
           )}
         </div>
       </main>
+
+      <footer className="relative z-10 px-6 pb-6 flex justify-center">
+        <LugotechCredit />
+      </footer>
     </div>
   );
 }

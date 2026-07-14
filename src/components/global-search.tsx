@@ -6,6 +6,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Icon, type IconName } from '@/components/icon';
 import { apiProductos, apiSucursales } from '@/lib/api';
 import { fetchAndCache, getCached } from '@/lib/cache';
+import { canViewReport } from '@/lib/permissions';
+import { reportKeyForPath } from '@/lib/reports';
 import type { RptProductoMasVendido, Sucursal } from '@/lib/types';
 
 type Hit = {
@@ -164,7 +166,15 @@ export function GlobalSearch() {
 
   const results = useMemo(() => {
     const q = normalize(query.trim());
-    const base = q ? INDEX.filter(h => normalize(h.title).includes(q) || (h.subtitle && normalize(h.subtitle).includes(q))) : REPORTS;
+    const source = q ? INDEX : REPORTS;
+    // Hide hits for reports the user's profile can't see (covers report,
+    // producto → /dashboard/productos, and sucursal → /dashboard/ventas hits).
+    const base = source.filter(h => {
+      const key = reportKeyForPath(h.href);
+      if (key && !canViewReport(key)) return false;
+      if (!q) return true;
+      return normalize(h.title).includes(q) || (h.subtitle ? normalize(h.subtitle).includes(q) : false);
+    });
     return base.slice(0, 8);
   }, [query, INDEX]);
 

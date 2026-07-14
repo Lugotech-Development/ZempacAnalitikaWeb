@@ -23,7 +23,12 @@ type Presentation = { title: string; icon: IconName };
 // Per-code look. Add an entry when a new block deserves its own title/icon;
 // anything not listed falls back to DEFAULT_PRESENTATION.
 const PRESENTATION: Record<string, Presentation> = {
-  TRIAL_VENCIDO: { title: 'Periodo de prueba finalizado', icon: 'hourglass_top' }
+  TRIAL_VENCIDO: { title: 'Periodo de prueba finalizado', icon: 'hourglass_top' },
+  // Single-session enforcement: the backend blocks this browser when a newer
+  // login of the same environment (web, clientType 0) takes over the account.
+  // Confirm the exact code with the backend team (plan coordination point #3);
+  // the modal already works for any code.
+  SESION_DUPLICADA: { title: 'Sesión iniciada en otro dispositivo', icon: 'smartphone' }
 };
 
 const DEFAULT_PRESENTATION: Presentation = { title: 'Acceso restringido', icon: 'lock' };
