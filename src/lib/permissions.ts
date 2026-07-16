@@ -3,19 +3,34 @@
 // functions over `getSession()`. Mirrors the Flutter app's `AppSession`
 // permission helpers.
 import { getSession } from './api';
+import { REPORT_ROUTES } from './reports';
 
 /**
- * Whether the signed-in user may see the report [reportKey]. SuperRoot and a
- * `null` allow-list (`reportesPermitidos`) both mean full access. Comparison is
- * case-insensitive. Returns `false` when there is no session.
+ * Whether the signed-in user may see a report that requires ALL of [keys]
+ * (each maps to an endpoint its screen calls). SuperRoot and a `null` allow-list
+ * (`reportesPermitidos`) both mean full access. Case-insensitive. Returns
+ * `false` when there is no session; empty [keys] → allowed.
  */
-export function canViewReport(reportKey: string): boolean {
+export function canViewReportKeys(keys: string[]): boolean {
   const s = getSession();
   if (!s) return false;
   if (s.role === 'SuperRoot') return true;
   const allowed = s.reportesPermitidos;
   if (allowed == null) return true;
-  return allowed.includes(reportKey.toLowerCase());
+  const lower = allowed.map(k => k.toLowerCase());
+  return keys.every(k => lower.includes(k.toLowerCase()));
+}
+
+/**
+ * The first dashboard route the user can actually access (its screen's keys are
+ * all granted), in nav order — used as the post-login landing so a user without
+ * the dashboard doesn't land on a forbidden page. `null` if none are accessible.
+ */
+export function firstAccessibleRoute(): string | null {
+  for (const r of REPORT_ROUTES) {
+    if (canViewReportKeys(r.reportKeys)) return r.href;
+  }
+  return null;
 }
 
 /** True for an `Externo` user (fixed, backend-forced parameters). */

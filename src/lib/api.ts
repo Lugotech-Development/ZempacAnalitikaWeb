@@ -579,36 +579,42 @@ export const apiProductosNegativos = (input: { sucursal: number; pagina: number;
 // in `types.ts` are tolerant to PascalCase / camelCase / common aliases
 // because the OpenAPI schema is intentionally loose (`array of object`).
 
-const CXC_TOP_DEFAULT = 10;
-
-const fetchCxcResumen = () =>
-  getJson('/api/Reportes/cxc/resumen', data => {
-    if (Array.isArray(data) && data.length > 0) return parseCxcResumen(data[0] as Record<string, unknown>);
-    if (data && typeof data === 'object') return parseCxcResumen(data as Record<string, unknown>);
-    return parseCxcResumen({});
+// Uses the MODULE-level endpoint (gated by the `cuentas-por-cobrar` permission),
+// which returns { resumen, antiguedad, topClientes } in one payload. The
+// granular per-widget endpoints (cxc/resumen, cxc/antiguedad, cxc/top-clientes)
+// require in-module permissions the backend hasn't set up yet — restore the
+// fan-out below when they do (see the roles/permissions memory note).
+export async function apiCuentasPorCobrar(): Promise<RptCuentasPorCobrar> {
+  return getJson<RptCuentasPorCobrar>('/api/Reportes/cuentas-por-cobrar', data => {
+    const d = (data && typeof data === 'object' ? data : {}) as Record<string, unknown>;
+    const resumenRaw = parseCxcResumen((d.resumen ?? {}) as Record<string, unknown>);
+    const antiguedad = parseCxcAntiguedad((d.antiguedad ?? {}) as Record<string, unknown>);
+    const topClientes = Array.isArray(d.topClientes) ? d.topClientes.map(r => parseCxcTopCliente(r as Record<string, unknown>)) : [];
+    // resumen doesn't carry saldoCorriente/saldoVencido; derive from antiguedad.
+    const saldoCorriente = antiguedad.corriente;
+    const saldoVencido = resumenRaw.saldoVencido > 0 ? resumenRaw.saldoVencido : Math.max(0, resumenRaw.saldoTotal - saldoCorriente);
+    const porcentajeVencido = resumenRaw.porcentajeVencido > 0 ? resumenRaw.porcentajeVencido : resumenRaw.saldoTotal > 0 ? (saldoVencido / resumenRaw.saldoTotal) * 100 : 0;
+    const resumen = { ...resumenRaw, saldoCorriente, saldoVencido, porcentajeVencido };
+    return { resumen, antiguedad, topClientes };
   });
-
-const fetchCxcAntiguedad = () =>
-  getJson('/api/Reportes/cxc/antiguedad', data => {
-    // API returns a single-element array with a wide row of bucket totals.
-    const row = Array.isArray(data) ? (data[0] as Record<string, unknown> | undefined) : (data as Record<string, unknown> | undefined);
-    return parseCxcAntiguedad(row ?? {});
-  });
-
-const fetchCxcTopClientes = (top: number) =>
-  getJson('/api/Reportes/cxc/top-clientes', data => (Array.isArray(data) ? data.map(r => parseCxcTopCliente(r as Record<string, unknown>)) : []), { top: String(top) });
-
-export async function apiCuentasPorCobrar(options?: { top?: number }): Promise<RptCuentasPorCobrar> {
-  const top = options?.top ?? CXC_TOP_DEFAULT;
-  const [resumenRaw, antiguedad, topClientes] = await Promise.all([fetchCxcResumen(), fetchCxcAntiguedad(), fetchCxcTopClientes(top)]);
-  // /cxc/resumen doesn't return saldoCorriente; derive it from antiguedad so
-  // the hero "Corriente" pill and any progress bars stay consistent.
-  const saldoCorriente = antiguedad.corriente;
-  const saldoVencido = resumenRaw.saldoVencido > 0 ? resumenRaw.saldoVencido : Math.max(0, resumenRaw.saldoTotal - saldoCorriente);
-  const porcentajeVencido = resumenRaw.porcentajeVencido > 0 ? resumenRaw.porcentajeVencido : resumenRaw.saldoTotal > 0 ? (saldoVencido / resumenRaw.saldoTotal) * 100 : 0;
-  const resumen = { ...resumenRaw, saldoCorriente, saldoVencido, porcentajeVencido };
-  return { resumen, antiguedad, topClientes };
 }
+
+// ── Granular fan-out (restore when in-module permissions ship) ──────────────
+// const CXC_TOP_DEFAULT = 10;
+// const fetchCxcResumen = () =>
+//   getJson('/api/Reportes/cxc/resumen', data => {
+//     if (Array.isArray(data) && data.length > 0) return parseCxcResumen(data[0] as Record<string, unknown>);
+//     if (data && typeof data === 'object') return parseCxcResumen(data as Record<string, unknown>);
+//     return parseCxcResumen({});
+//   });
+// const fetchCxcAntiguedad = () =>
+//   getJson('/api/Reportes/cxc/antiguedad', data => {
+//     const row = Array.isArray(data) ? (data[0] as Record<string, unknown> | undefined) : (data as Record<string, unknown> | undefined);
+//     return parseCxcAntiguedad(row ?? {});
+//   });
+// const fetchCxcTopClientes = (top: number) =>
+//   getJson('/api/Reportes/cxc/top-clientes', data => (Array.isArray(data) ? data.map(r => parseCxcTopCliente(r as Record<string, unknown>)) : []), { top: String(top) });
+// const [resumenRaw, antiguedad, topClientes] = await Promise.all([fetchCxcResumen(), fetchCxcAntiguedad(), fetchCxcTopClientes(CXC_TOP_DEFAULT)]);
 
 export function apiCuentasPorCobrarDetalle(clienteCodigo: string): Promise<RptCxcDetalleFactura[]> {
   return getJson('/api/Reportes/cxc/detalle-cliente', (data: unknown) => (Array.isArray(data) ? data.map(r => parseCxcDetalleFactura(r as Record<string, unknown>)) : []), { clienteCodigo });

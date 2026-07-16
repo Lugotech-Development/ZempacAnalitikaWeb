@@ -10,8 +10,8 @@ import { ZempacLogo, LugotechCredit } from '@/components/common';
 import { GlobalSearch } from '@/components/global-search';
 import { apiLogout } from '@/lib/api';
 import { invalidateAll } from '@/lib/cache';
-import { canViewReport } from '@/lib/permissions';
-import { reportKeyForPath } from '@/lib/reports';
+import { canViewReportKeys } from '@/lib/permissions';
+import { reportKeysForPath } from '@/lib/reports';
 import type { SessionInfo } from '@/lib/types';
 
 const NAV: { href: string; label: string; icon: IconName }[] = [
@@ -112,8 +112,8 @@ function NavList({ pathname, onClick }: { pathname: string; onClick?: () => void
   // Only show reports the user's profile permits. Routes without a permission
   // key (e.g. preview reports) are always shown.
   const items = NAV.filter(({ href }) => {
-    const key = reportKeyForPath(href);
-    return key ? canViewReport(key) : true;
+    const keys = reportKeysForPath(href);
+    return keys ? canViewReportKeys(keys) : true;
   });
   return (
     <ul className="px-3 space-y-1">

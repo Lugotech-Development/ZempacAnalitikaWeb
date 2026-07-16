@@ -6,8 +6,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Icon, type IconName } from '@/components/icon';
 import { apiProductos, apiSucursales } from '@/lib/api';
 import { fetchAndCache, getCached } from '@/lib/cache';
-import { canViewReport } from '@/lib/permissions';
-import { reportKeyForPath } from '@/lib/reports';
+import { canViewReportKeys } from '@/lib/permissions';
+import { reportKeysForPath } from '@/lib/reports';
 import type { RptProductoMasVendido, Sucursal } from '@/lib/types';
 
 type Hit = {
@@ -170,8 +170,8 @@ export function GlobalSearch() {
     // Hide hits for reports the user's profile can't see (covers report,
     // producto → /dashboard/productos, and sucursal → /dashboard/ventas hits).
     const base = source.filter(h => {
-      const key = reportKeyForPath(h.href);
-      if (key && !canViewReport(key)) return false;
+      const keys = reportKeysForPath(h.href);
+      if (keys && !canViewReportKeys(keys)) return false;
       if (!q) return true;
       return normalize(h.title).includes(q) || (h.subtitle ? normalize(h.subtitle).includes(q) : false);
     });
