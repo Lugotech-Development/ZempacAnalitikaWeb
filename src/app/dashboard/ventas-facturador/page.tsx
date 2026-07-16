@@ -6,9 +6,11 @@ import { Icon } from '@/components/icon';
 
 const FacturadorChart = dynamic(() => import('@/components/facturador-chart'), { ssr: false });
 import { PageHeader } from '@/components/page-header';
+import { LockedFilter } from '@/components/common';
 import { EmptyState, ErrorState, LoadingBar, LoadingState } from '@/components/states';
 import { fmtMoney, toIsoEndOfDay, toIsoStartOfDay } from '@/lib/format';
 import { apiSucursales, apiVentasFacturadorSucursal } from '@/lib/api';
+import { forcedNumber } from '@/lib/permissions';
 import { useApi } from '@/lib/use-api';
 import type { RptVentaFacturador, Sucursal } from '@/lib/types';
 
@@ -48,6 +50,13 @@ export default function VentasFacturadorPage() {
   const [preset, setPreset] = useState<PresetId>('mes');
   const [sucursalOpen, setSucursalOpen] = useState(false);
   const [chartExpanded, setChartExpanded] = useState(false);
+
+  // If the profile fixes the sucursal (parametrosSP), lock the picker to it;
+  // otherwise the default is "Todas" (sucursalId null).
+  const forcedSucursal = forcedNumber('ventas-facturador-sucursal', ['sucursal', 'sucursalId', 'idSucursal']);
+  useEffect(() => {
+    if (forcedSucursal != null) setSucursalId(forcedSucursal);
+  }, [forcedSucursal]);
 
   // Auto-select "Todas" on mount (sucursalId stays null)
   useEffect(() => {
@@ -107,7 +116,11 @@ export default function VentasFacturadorPage() {
         <>
           {/* Filters */}
           <div className="card p-4 sm:p-5 flex flex-col lg:flex-row lg:items-center gap-4 mb-4">
-            {/* Sucursal picker (includes "Todas") */}
+            {/* Sucursal picker (includes "Todas"). Locked to the profile-assigned
+                sucursal when forced by parametrosSP. */}
+            {forcedSucursal != null ? (
+              <LockedFilter icon="store" value={sucursalActual?.nombre ?? '—'} />
+            ) : (
             <div className="relative">
               <button
                 type="button"
@@ -154,6 +167,7 @@ export default function VentasFacturadorPage() {
                 </ul>
               )}
             </div>
+            )}
 
             {/* Preset pills */}
             <div className="flex items-center gap-2 overflow-x-auto -mx-1 px-1">

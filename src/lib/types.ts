@@ -447,7 +447,7 @@ export const parseCxcResumen = (j: J): RptCxcResumen => {
     saldoCorriente,
     saldoVencido,
     porcentajeVencido,
-    clientesConSaldo: numAny(j, 'TotalClientes', 'ClientesConSaldo', 'clientesConSaldo', 'Clientes', 'CantidadClientes'),
+    clientesConSaldo: numAny(j, 'TotalClientes', 'totalClientes', 'ClientesConSaldo', 'clientesConSaldo', 'Clientes', 'CantidadClientes'),
     facturasPendientes: numAny(j, 'FacturasPendientes', 'facturasPendientes', 'TotalFacturas', 'Facturas', 'CantidadFacturas', 'FacturasAbiertas')
   };
 };

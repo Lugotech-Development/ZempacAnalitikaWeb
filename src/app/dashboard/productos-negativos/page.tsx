@@ -2,10 +2,12 @@
 
 import { useEffect, useState } from 'react';
 import { Icon } from '@/components/icon';
+import { LockedFilter } from '@/components/common';
 import { PageHeader } from '@/components/page-header';
 import { EmptyState, ErrorState, LoadingBar, LoadingState } from '@/components/states';
 import { fmtDecimal, fmtInt } from '@/lib/format';
 import { apiProductosNegativos, apiSucursales } from '@/lib/api';
+import { forcedNumber } from '@/lib/permissions';
 import { useApi } from '@/lib/use-api';
 import type { ProductosNegativosPage, Sucursal } from '@/lib/types';
 
@@ -20,13 +22,16 @@ export default function ProductosNegativosPage() {
   const [pagina, setPagina] = useState(1);
   const [sucursalOpen, setSucursalOpen] = useState(false);
 
+  // If the profile fixes the sucursal (parametrosSP), lock the picker to it.
+  const forcedSucursal = forcedNumber('analitica-productos-negativos', ['sucursal', 'sucursalId', 'idSucursal']);
+
   // Sucursal is mandatory (the SP rejects sucursal <= 0), so default to the
-  // first one as soon as the list arrives. There is no "Todas" option.
+  // forced one, else the first one, as soon as the list arrives.
   useEffect(() => {
     if (sucursalId == null && sucursalesQ.data && sucursalesQ.data.length > 0) {
-      setSucursalId(sucursalesQ.data[0].id);
+      setSucursalId(forcedSucursal ?? sucursalesQ.data[0].id);
     }
-  }, [sucursalesQ.data, sucursalId]);
+  }, [sucursalesQ.data, sucursalId, forcedSucursal]);
 
   const key = `rpt:productos-negativos:${sucursalId ?? 'none'}:${pagina}:${PER_PAGE}`;
   const q = useApi<ProductosNegativosPage>(key, () =>
@@ -59,40 +64,45 @@ export default function ProductosNegativosPage() {
 
       {sucursalesQ.status === 'success' && (
         <>
-          {/* Sucursal picker (required — no "Todas" option) */}
+          {/* Sucursal picker (required — no "Todas" option). Locked to the
+              profile-assigned sucursal when forced by parametrosSP. */}
           <div className="card p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center gap-4 mb-4">
-            <div className="relative">
-              <button
-                type="button"
-                onClick={() => setSucursalOpen(!sucursalOpen)}
-                onBlur={() => setTimeout(() => setSucursalOpen(false), 120)}
-                className="flex items-center gap-3 rounded-xl border border-surface-mid bg-surface-lowest px-4 py-2.5 text-sm font-bold text-ink min-w-[240px]"
-              >
-                <Icon name="store" size={16} className="text-primary" />
-                <span className="flex-1 text-left truncate">{sucursalActual ? sucursalActual.nombre : 'Seleccionar sucursal'}</span>
-                <Icon name="expand_more" size={14} className="text-outline" />
-              </button>
-              {sucursalOpen && (
-                <ul className="absolute left-0 right-0 mt-2 card-bordered p-1 z-20 max-h-72 overflow-y-auto zsb-scroll">
-                  {(sucursalesQ.data ?? []).map(s => {
-                    const active = s.id === sucursalId;
-                    return (
-                      <li key={s.id}>
-                        <button
-                          type="button"
-                          onMouseDown={() => selectSucursal(s.id)}
-                          className={`flex items-center gap-2 w-full px-3 py-2 rounded-lg text-sm font-semibold text-left ${active ? 'bg-primary/10 text-primary' : 'text-ink hover:bg-surface-low'}`}
-                        >
-                          <Icon name="store" size={14} />
-                          <span className="flex-1 truncate">{s.nombre}</span>
-                          {active && <Icon name="check" size={14} />}
-                        </button>
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
-            </div>
+            {forcedSucursal != null ? (
+              <LockedFilter icon="store" value={sucursalActual?.nombre ?? '—'} />
+            ) : (
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setSucursalOpen(!sucursalOpen)}
+                  onBlur={() => setTimeout(() => setSucursalOpen(false), 120)}
+                  className="flex items-center gap-3 rounded-xl border border-surface-mid bg-surface-lowest px-4 py-2.5 text-sm font-bold text-ink min-w-[240px]"
+                >
+                  <Icon name="store" size={16} className="text-primary" />
+                  <span className="flex-1 text-left truncate">{sucursalActual ? sucursalActual.nombre : 'Seleccionar sucursal'}</span>
+                  <Icon name="expand_more" size={14} className="text-outline" />
+                </button>
+                {sucursalOpen && (
+                  <ul className="absolute left-0 right-0 mt-2 card-bordered p-1 z-20 max-h-72 overflow-y-auto zsb-scroll">
+                    {(sucursalesQ.data ?? []).map(s => {
+                      const active = s.id === sucursalId;
+                      return (
+                        <li key={s.id}>
+                          <button
+                            type="button"
+                            onMouseDown={() => selectSucursal(s.id)}
+                            className={`flex items-center gap-2 w-full px-3 py-2 rounded-lg text-sm font-semibold text-left ${active ? 'bg-primary/10 text-primary' : 'text-ink hover:bg-surface-low'}`}
+                          >
+                            <Icon name="store" size={14} />
+                            <span className="flex-1 truncate">{s.nombre}</span>
+                            {active && <Icon name="check" size={14} />}
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </div>
+            )}
 
             {/* Total count for the selected sucursal */}
             {q.status === 'success' && (

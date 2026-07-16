@@ -50,14 +50,16 @@ const VARIANT_ICON: Record<ErrorVariant, IconName> = {
   network: 'cloud_off',
   session: 'logout',
   server: 'error',
-  empty: 'inbox'
+  empty: 'inbox',
+  forbidden: 'lock'
 };
 
 const VARIANT_TITLE: Record<ErrorVariant, string> = {
   network: 'Error al cargar datos',
   session: 'Sesión expirada',
   server: 'Algo salió mal',
-  empty: 'Sin datos para mostrar'
+  empty: 'Sin datos para mostrar',
+  forbidden: 'Acceso no autorizado'
 };
 
 export function ErrorState({ variant, message, onRetry }: { variant: ErrorVariant; message?: string; onRetry?: () => void }) {
@@ -68,7 +70,7 @@ export function ErrorState({ variant, message, onRetry }: { variant: ErrorVarian
       </div>
       <h3 className="text-lg font-bold">{VARIANT_TITLE[variant]}</h3>
       {message && <p className="text-sm text-ink-variant max-w-md">{message}</p>}
-      {onRetry && variant !== 'session' && (
+      {onRetry && variant !== 'session' && variant !== 'forbidden' && (
         <button
           type="button"
           onClick={onRetry}
@@ -83,4 +85,25 @@ export function ErrorState({ variant, message, onRetry }: { variant: ErrorVarian
 
 export function EmptyState({ message }: { message?: string }) {
   return <ErrorState variant="empty" message={message ?? 'No hay registros disponibles por ahora.'} />;
+}
+
+/**
+ * Shown when the user's profile can't see a report — by the dashboard route
+ * guard (deep links / direct navigation) and when the backend answers a report
+ * request with 403.
+ */
+export function NoAccessState({
+  message = 'Tu perfil no tiene permiso para ver este reporte. Contacta a tu administrador si crees que es un error.'
+}: {
+  message?: string;
+}) {
+  return (
+    <div className="card-bordered p-10 flex flex-col items-center text-center gap-3">
+      <div className="h-14 w-14 rounded-2xl bg-tertiary/10 text-tertiary flex items-center justify-center">
+        <Icon name="lock" size={26} />
+      </div>
+      <h3 className="text-lg font-bold">Acceso no autorizado</h3>
+      <p className="text-sm text-ink-variant max-w-md">{message}</p>
+    </div>
+  );
 }

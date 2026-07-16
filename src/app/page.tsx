@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { Icon, type IconName } from '@/components/icon';
-import { ZempacLogo } from '@/components/common';
+import { ZempacLogo, LugotechCredit } from '@/components/common';
 
 export default function LandingPage() {
   return (
@@ -386,7 +386,10 @@ function Footer() {
     <footer className="border-t border-surface-mid bg-surface-lowest">
       <div className="mx-auto max-w-6xl px-6 py-10 flex flex-col sm:flex-row items-center justify-between gap-4">
         <ZempacLogo size={28} />
-        <p className="text-xs text-ink-variant">© {new Date().getFullYear()} Zempac Analitika. Todos los derechos reservados.</p>
+        <div className="text-center sm:text-right">
+          <p className="text-xs text-ink-variant">© {new Date().getFullYear()} Zempac Analitika. Todos los derechos reservados.</p>
+          <LugotechCredit className="mt-1" />
+        </div>
       </div>
     </footer>
   );

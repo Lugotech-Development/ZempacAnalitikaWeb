@@ -2,10 +2,12 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Icon } from '@/components/icon';
+import { LockedFilter } from '@/components/common';
 import { PageHeader } from '@/components/page-header';
 import { EmptyState, ErrorState, LoadingState } from '@/components/states';
 import { fmtMoney, toIsoEndOfDay, toIsoStartOfDay } from '@/lib/format';
 import { apiMarcas, apiVentasProductoMarca, classifyError, type ErrorVariant } from '@/lib/api';
+import { forcedNumber } from '@/lib/permissions';
 import type { Marca, RptVentaProductoMarca } from '@/lib/types';
 import * as XLSX from 'xlsx';
 
@@ -52,6 +54,16 @@ export default function VentasProductoMarcaPage() {
   const [sugFetching, setSugFetching] = useState(false);
   const [ready, setReady] = useState(false); // false until user picks a marca or Todas
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // If the profile fixes the marca (parametrosSP), lock it and load right away.
+  const forcedMarca = forcedNumber('ventas-producto-marca', ['marcaId', 'idMarca', 'marca']);
+  useEffect(() => {
+    if (forcedMarca != null) {
+      setMarcaId(forcedMarca);
+      setMarcaName('Marca asignada');
+      setReady(true);
+    }
+  }, [forcedMarca]);
 
   // ── Report state (manual — no auto-fetch) ─────────────────────────────────
   const [reportData, setReportData] = useState<RptVentaProductoMarca[] | null>(null);
@@ -179,7 +191,10 @@ export default function VentasProductoMarcaPage() {
       {/* Filters */}
       <div className="card p-4 sm:p-5 flex flex-col lg:flex-row lg:items-center gap-4 mb-4">
 
-        {/* Marca autocomplete */}
+        {/* Marca autocomplete — locked when the profile fixes the marca. */}
+        {forcedMarca != null ? (
+          <LockedFilter icon="sell" value={marcaName ?? 'Marca asignada'} />
+        ) : (
         <div className="relative min-w-[240px]">
           {ready && marcaId != null ? (
             /* Specific marca chip */
@@ -263,6 +278,7 @@ export default function VentasProductoMarcaPage() {
             </ul>
           )}
         </div>
+        )}
 
         {/* Preset pills + export */}
         <div className="flex items-center gap-2 overflow-x-auto -mx-1 px-1 flex-1">

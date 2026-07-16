@@ -4,8 +4,9 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useState } from 'react';
 import { Icon } from '@/components/icon';
-import { ZempacLogo } from '@/components/common';
+import { ZempacLogo, LugotechCredit } from '@/components/common';
 import { apiLogin, classifyError } from '@/lib/api';
+import { firstAccessibleRoute } from '@/lib/permissions';
 
 export default function LoginPage() {
   return (
@@ -51,7 +52,9 @@ function LoginForm() {
         usuario: usuario.trim(),
         password
       });
-      const dest = search.get('from') ?? '/dashboard';
+      // Land on where they came from, else the first report they can access
+      // (the dashboard/Principal may not be permitted for this profile).
+      const dest = search.get('from') ?? firstAccessibleRoute() ?? '/dashboard';
       router.replace(dest);
     } catch (e) {
       const { variant, message } = classifyError(e);
@@ -183,6 +186,10 @@ function LoginForm() {
           )}
         </div>
       </main>
+
+      <footer className="relative z-10 px-6 pb-6 flex justify-center">
+        <LugotechCredit />
+      </footer>
     </div>
   );
 }
