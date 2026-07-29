@@ -5,7 +5,9 @@ import { PageHeader } from '@/components/page-header';
 import { EyebrowLabel } from '@/components/common';
 import { ErrorState, LoadingState } from '@/components/states';
 import { Icon } from '@/components/icon';
+import { ExcelExportButton } from '@/components/common';
 import { fmtDate, fmtInt, fmtMoney, fmtPercent } from '@/lib/format';
+import { useExcelExport } from '@/lib/use-excel-export';
 import { useApi } from '@/lib/use-api';
 import { apiCuentasPorCobrar } from '@/lib/api';
 import { apiCuentasPorCobrarDetallePaginado } from '@/lib/api';
@@ -65,6 +67,11 @@ function Content({ d }: { d: RptCuentasPorCobrar }) {
 
   const maxSaldo = Math.max(1, ...topClientes.map(c => c.saldoTotal));
 
+  const xls = useExcelExport();
+  const handleExport = () => {
+    void xls.run('cuentas-por-cobrar');
+  };
+
   // Handler to expand/collapse and fetch detail if needed
   const handleExpand = async (clienteCodigo: string) => {
     if (expanded === clienteCodigo) {
@@ -79,9 +86,7 @@ function Content({ d }: { d: RptCuentasPorCobrar }) {
         [clienteCodigo]: { loading: true, error: null, data: [], pagina: 1, hasMore: true }
       }));
       try {
-        console.log('Detalle paginado API payload:', { clienteCodigo, pagina: 1, porPagina: 10 }); // DEBUG
         const data: RptCxcDetalleFactura[] = await apiCuentasPorCobrarDetallePaginado(clienteCodigo, 1, 10);
-        console.log('Detalle paginado API result:', data); // DEBUG
         setDetails(prev => ({
           ...prev,
           [clienteCodigo]: {
@@ -172,7 +177,10 @@ function Content({ d }: { d: RptCuentasPorCobrar }) {
       <div className="mt-4 card-bordered p-6">
         <div className="flex items-center justify-between gap-3 mb-4">
           <EyebrowLabel>Clientes con Mayor Saldo</EyebrowLabel>
-          <span className="text-[11px] text-ink-variant">{topClientes.length} clientes</span>
+          <div className="flex items-center gap-3">
+            <span className="text-[11px] text-ink-variant">{topClientes.length} clientes</span>
+            {topClientes.length > 0 && <ExcelExportButton onClick={handleExport} busy={xls.busy} label="" />}
+          </div>
         </div>
         {topClientes.length === 0 ? (
           <p className="text-sm text-ink-variant">No hay clientes con saldo pendiente.</p>

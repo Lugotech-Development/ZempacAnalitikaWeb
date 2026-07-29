@@ -3,10 +3,11 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Icon, type IconName } from '@/components/icon';
 import { PageHeader } from '@/components/page-header';
-import { EyebrowLabel, LockedFilter } from '@/components/common';
+import { EyebrowLabel, ExcelExportButton, LockedFilter } from '@/components/common';
 import { EmptyState, ErrorState, LoadingBar, LoadingState } from '@/components/states';
 import { fmtInt, fmtMoney, toIsoEndOfDay, toIsoStartOfDay } from '@/lib/format';
 import { apiAnaliticaLoteCondensado, apiAnaliticaLotes, apiAnaliticaProductosPorLote, apiCuadreCaja, apiSucursales } from '@/lib/api';
+import { useExcelExport } from '@/lib/use-excel-export';
 import { forcedNumber } from '@/lib/permissions';
 import { useApi } from '@/lib/use-api';
 import { cuadreCleanDesc, cuadreIsDivider, cuadreIsSectionHeader, cuadreIsSpacer, cuadreIsSubItem, LOTE_ESTATUS, PRODUCTO_LOTE_ORDER, type ProductoLoteOrder, type RptCuadreCajaLinea, type RptLote, type RptLoteCondensadoLinea, type RptProductoPorLote, type Sucursal } from '@/lib/types';
@@ -59,7 +60,8 @@ export default function CuadreCajaPage() {
   const [tab, setTab] = useState<TabId>('general');
 
   // If the profile fixes the sucursal (parametrosSP), lock the picker to it.
-  const forcedSucursal = forcedNumber('analitica-lote-condensado', ['sucursal', 'sucursalId', 'idSucursal']);
+  // Permission/parametrosSP key is `cuadre-caja`, not the endpoint slug.
+  const forcedSucursal = forcedNumber('cuadre-caja', ['sucursal', 'sucursalId', 'idSucursal']);
 
   // Pick the forced sucursal, else the first, when the list arrives.
   useEffect(() => {
@@ -379,6 +381,11 @@ function LoteProductosDetail({ lote, ctx, sucursalNombre }: { lote: number; ctx:
     return copy;
   }, [productos, orderBy]);
 
+  const xls = useExcelExport();
+  const handleExport = () => {
+    void xls.run('cuadre-productos', { lote });
+  };
+
   return (
     <>
       <LoadingBar active={refreshing} className="mb-3" />
@@ -401,19 +408,22 @@ function LoteProductosDetail({ lote, ctx, sucursalNombre }: { lote: number; ctx:
                   {fmtInt(productos.length)} producto{productos.length === 1 ? '' : 's'} · {fmtInt(totalUnidades)} unidades vendidas
                 </p>
               </div>
-              <div className="flex items-center gap-2 overflow-x-auto -mx-1 px-1">
-                {PRODUCTO_ORDER_OPTIONS.map(o => {
-                  const active = o.id === orderBy;
-                  return (
-                    <button
-                      key={o.id}
-                      type="button"
-                      onClick={() => setOrderBy(o.id)}
-                      className={`shrink-0 pill text-xs ${active ? 'bg-primary text-white' : 'bg-surface-low text-ink-variant hover:bg-surface-mid'}`}>
-                      {o.label}
-                    </button>
-                  );
-                })}
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2 overflow-x-auto -mx-1 px-1">
+                  {PRODUCTO_ORDER_OPTIONS.map(o => {
+                    const active = o.id === orderBy;
+                    return (
+                      <button
+                        key={o.id}
+                        type="button"
+                        onClick={() => setOrderBy(o.id)}
+                        className={`shrink-0 pill text-xs ${active ? 'bg-primary text-white' : 'bg-surface-low text-ink-variant hover:bg-surface-mid'}`}>
+                        {o.label}
+                      </button>
+                    );
+                  })}
+                </div>
+                <ExcelExportButton onClick={handleExport} busy={xls.busy} label="" />
               </div>
             </div>
 

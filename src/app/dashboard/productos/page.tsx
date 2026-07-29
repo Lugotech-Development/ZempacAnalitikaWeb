@@ -2,10 +2,12 @@
 
 import { Suspense, useEffect, useMemo, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
+import { ExcelExportButton } from '@/components/common';
 import { PageHeader } from '@/components/page-header';
 import { EmptyState, ErrorState, LoadingState } from '@/components/states';
 import { fmtInt, fmtMoney, fmtPercent } from '@/lib/format';
 import { apiProductos } from '@/lib/api';
+import { useExcelExport } from '@/lib/use-excel-export';
 import { useApi } from '@/lib/use-api';
 import type { RptProductoMasVendido } from '@/lib/types';
 
@@ -56,11 +58,16 @@ function Content({ productos, highlightSku }: { productos: RptProductoMasVendido
     }
   }, [highlightSku, productos]);
 
+  const xls = useExcelExport();
+
   return (
     <>
-      <p className="text-sm text-ink-variant">
-        {fmtInt(productos.length)} producto{productos.length === 1 ? '' : 's'}
-      </p>
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-sm text-ink-variant">
+          {fmtInt(productos.length)} producto{productos.length === 1 ? '' : 's'}
+        </p>
+        <ExcelExportButton onClick={() => void xls.run('productos')} busy={xls.busy} label="" />
+      </div>
 
       <div className="mt-4 space-y-3">
         {productos.map((p, i) => {

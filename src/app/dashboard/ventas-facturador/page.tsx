@@ -6,10 +6,11 @@ import { Icon } from '@/components/icon';
 
 const FacturadorChart = dynamic(() => import('@/components/facturador-chart'), { ssr: false });
 import { PageHeader } from '@/components/page-header';
-import { LockedFilter } from '@/components/common';
+import { ExcelExportButton, LockedFilter } from '@/components/common';
 import { EmptyState, ErrorState, LoadingBar, LoadingState } from '@/components/states';
 import { fmtMoney, toIsoEndOfDay, toIsoStartOfDay } from '@/lib/format';
 import { apiSucursales, apiVentasFacturadorSucursal } from '@/lib/api';
+import { useExcelExport } from '@/lib/use-excel-export';
 import { forcedNumber } from '@/lib/permissions';
 import { useApi } from '@/lib/use-api';
 import type { RptVentaFacturador, Sucursal } from '@/lib/types';
@@ -78,6 +79,11 @@ export default function VentasFacturadorPage() {
     () => (q.data ?? []).reduce((s, r) => s + (r.totalVenta ?? 0), 0),
     [q.data]
   );
+
+  const xls = useExcelExport();
+  const handleExport = () => {
+    void xls.run('ventas-facturador', { desde: range.desde, hasta: range.hasta, sucursalId: sucursalId ?? undefined });
+  };
 
   const chartData = useMemo(() => {
     if (!q.data) return [];
@@ -186,6 +192,11 @@ export default function VentasFacturadorPage() {
                 </button>
               ))}
             </div>
+
+            {/* Export */}
+            {q.status === 'success' && q.data && q.data.length > 0 && (
+              <ExcelExportButton onClick={handleExport} busy={xls.busy} className="lg:ml-auto" />
+            )}
           </div>
 
           <LoadingBar active={q.isValidating && q.status === 'success'} className="mb-4" />

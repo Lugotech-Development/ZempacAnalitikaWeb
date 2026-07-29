@@ -40,6 +40,9 @@ function Content({ d }: { d: RptPantallaPrincipal }) {
   const productosChange = pctChange(d.productosDistintosMesActual, d.productosDistintosMesAnterior);
   const costoChange = pctChange(d.costoEstimadoMesActual, d.costoEstimadoMesAnterior);
   const devolucionRate = Math.min(d.porcDevolucionSobreVentaMesActual ?? 0, 100);
+  const margenInventario = (d.montoInventario ?? 0) - (d.costoInventario ?? 0);
+  const porcMargenInventario = d.montoInventario ? (margenInventario / d.montoInventario) * 100 : 0;
+  const hasInventario = d.montoInventario != null || d.costoInventario != null;
 
   return (
     <>
@@ -131,6 +134,36 @@ function Content({ d }: { d: RptPantallaPrincipal }) {
           <span className="pill bg-surface-low text-ink-variant tabular-nums">Mes anterior: {fmtMoney(d.descuentoMesAnterior)}</span>
         </div>
       </div>
+
+      {hasInventario && (
+        <div className="mt-4 card p-6">
+          <EyebrowLabel>Inventario Actual</EyebrowLabel>
+          <div className="mt-3 flex items-start justify-between gap-4">
+            <div>
+              <p className="text-[11px] text-ink-variant">Monto inventario</p>
+              <p className="mt-0.5 text-2xl font-extrabold tracking-tight tabular-nums break-words">{fmtMoney(d.montoInventario)}</p>
+            </div>
+            <div className="text-right">
+              <p className="text-[11px] text-ink-variant">Costo inventario</p>
+              <p className="mt-0.5 text-base font-bold tabular-nums">{fmtMoney(d.costoInventario)}</p>
+            </div>
+          </div>
+          {d.montoInventario != null && d.costoInventario != null && d.montoInventario > 0 && (
+            <div className="mt-4">
+              <div className="flex items-baseline justify-between gap-3">
+                <span className="text-xs font-semibold text-ink-variant">Margen potencial</span>
+                <span className="text-sm font-extrabold text-ink tabular-nums">{fmtPercent(porcMargenInventario)}</span>
+              </div>
+              <div className="mt-2 h-1.5 rounded-pill bg-surface-mid overflow-hidden">
+                <div className="h-full bg-cta-gradient" style={{ width: `${Math.max(0, Math.min(porcMargenInventario, 100))}%` }} />
+              </div>
+              <p className="mt-2 text-[11px] text-ink-variant tabular-nums">
+                {fmtMoney(margenInventario)} — monto menos costo
+              </p>
+            </div>
+          )}
+        </div>
+      )}
     </>
   );
 }

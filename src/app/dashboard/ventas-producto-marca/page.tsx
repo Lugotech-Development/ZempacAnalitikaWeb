@@ -2,14 +2,14 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Icon } from '@/components/icon';
-import { LockedFilter } from '@/components/common';
+import { ExcelExportButton, LockedFilter } from '@/components/common';
 import { PageHeader } from '@/components/page-header';
 import { EmptyState, ErrorState, LoadingState } from '@/components/states';
 import { fmtMoney, toIsoEndOfDay, toIsoStartOfDay } from '@/lib/format';
 import { apiMarcas, apiVentasProductoMarca, classifyError, type ErrorVariant } from '@/lib/api';
+import { useExcelExport } from '@/lib/use-excel-export';
 import { forcedNumber } from '@/lib/permissions';
 import type { Marca, RptVentaProductoMarca } from '@/lib/types';
-import * as XLSX from 'xlsx';
 
 type PresetId = 'mes' | '7d' | '30d' | 'ayer';
 const PRESETS: { id: PresetId; label: string }[] = [
@@ -162,20 +162,10 @@ export default function VentasProductoMarcaPage() {
     [reportData]
   );
 
-  const handleExportExcel = useCallback(() => {
-    if (!reportData || reportData.length === 0) return;
-    const rows = reportData.map(r => ({
-      Marca: r.marca ?? '',
-      Sucursal: r.sucursal ?? '',
-      Producto: r.producto ?? '',
-      Cantidad: r.cantidad ?? 0,
-      Total: r.totalVenta ?? 0,
-    }));
-    const ws = XLSX.utils.json_to_sheet(rows);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Ventas por Marca');
-    XLSX.writeFile(wb, 'ventas-por-marca.xlsx');
-  }, [reportData]);
+  const xls = useExcelExport();
+  const handleExportExcel = () => {
+    void xls.run('ventas-producto-marca', { desde: range.desde, hasta: range.hasta, marcaId: marcaId ?? undefined });
+  };
 
   return (
     <>
@@ -300,17 +290,7 @@ export default function VentasProductoMarcaPage() {
 
         {/* Export */}
         {ready && reportData && reportData.length > 0 && (
-          <div className="flex items-center gap-2 shrink-0">
-            <span className="text-xs font-semibold text-outline">Exportar:</span>
-            <button
-              type="button"
-              onClick={handleExportExcel}
-              className="flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1.5 text-xs font-bold text-primary hover:bg-primary/20 transition-colors"
-            >
-              <Icon name="download" size={14} />
-              <span>Excel</span>
-            </button>
-          </div>
+          <ExcelExportButton onClick={handleExportExcel} busy={xls.busy} />
         )}
       </div>
 
