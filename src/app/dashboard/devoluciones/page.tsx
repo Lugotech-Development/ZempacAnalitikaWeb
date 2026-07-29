@@ -6,10 +6,11 @@ import { useSearchParams } from 'next/navigation';
 import { useMemo, useState } from 'react';
 import { Icon, type IconName } from '@/components/icon';
 import { PageHeader } from '@/components/page-header';
-import { EyebrowLabel } from '@/components/common';
+import { EyebrowLabel, ExcelExportButton } from '@/components/common';
 import { EmptyState, ErrorState, LoadingState, SkeletonBox } from '@/components/states';
 import { fmtDate, fmtDayMonth, fmtInt, fmtMoney } from '@/lib/format';
 import { apiDevoluciones } from '@/lib/api';
+import { useExcelExport } from '@/lib/use-excel-export';
 import { useApi } from '@/lib/use-api';
 import { groupDevolucionesBySucursal, type DevolucionSucursalSummary, type RptDevolucion } from '@/lib/types';
 
@@ -77,6 +78,8 @@ function ListView({ devoluciones }: { devoluciones: RptDevolucion[] }) {
 
   const summaries = useMemo(() => groupDevolucionesBySucursal(devoluciones), [devoluciones]);
 
+  const xls = useExcelExport();
+
   return (
     <>
       <SummaryTile label="Total Devuelto" value={fmtMoney(totals.totalDevuelto)} icon="receipt_long" color="tertiary" />
@@ -93,11 +96,14 @@ function ListView({ devoluciones }: { devoluciones: RptDevolucion[] }) {
         </div>
       )}
 
-      <div className="mt-6 flex items-end justify-between">
+      <div className="mt-6 flex items-center justify-between gap-3">
         <EyebrowLabel>Por Sucursal</EyebrowLabel>
-        <span className="text-xs text-ink-variant">
-          {summaries.length} sucursal{summaries.length === 1 ? '' : 'es'}
-        </span>
+        <div className="flex items-center gap-3">
+          <span className="text-xs text-ink-variant">
+            {summaries.length} sucursal{summaries.length === 1 ? '' : 'es'}
+          </span>
+          {summaries.length > 0 && <ExcelExportButton onClick={() => void xls.run('devoluciones-30')} busy={xls.busy} label="" />}
+        </div>
       </div>
       <div className="mt-3 space-y-3">
         {summaries.map(s => (
@@ -170,6 +176,11 @@ function DetailContent({ s }: { s: DevolucionSucursalSummary }) {
 
   const rangeStr = `${fmtDayMonth(fechaMin)} – ${fmtDate(fechaMax)}`;
 
+  const xls = useExcelExport();
+  const handleExport = () => {
+    void xls.run('devoluciones-30', { sucursalId: s.sucursal });
+  };
+
   return (
     <>
       <h1 className="text-3xl sm:text-[32px] font-extrabold tracking-tight text-ink">{s.almacenNombre || `Sucursal ${s.sucursal}`}</h1>
@@ -201,13 +212,16 @@ function DetailContent({ s }: { s: DevolucionSucursalSummary }) {
       )}
 
       <div className="mt-6">
-        <button type="button" onClick={() => setExpanded(v => !v)} className="w-full card flex items-center px-4 py-3.5 text-left">
-          <EyebrowLabel>Detalle Diario</EyebrowLabel>
-          <span className="ml-2 text-xs text-ink-variant">{sortedDaily.length} registros</span>
-          <span className="ml-auto">
-            <Icon name={expanded ? 'expand_less' : 'expand_more'} size={20} className="text-ink-variant" />
-          </span>
-        </button>
+        <div className="flex items-center gap-3">
+          <button type="button" onClick={() => setExpanded(v => !v)} className="flex-1 card flex items-center px-4 py-3.5 text-left">
+            <EyebrowLabel>Detalle Diario</EyebrowLabel>
+            <span className="ml-2 text-xs text-ink-variant">{sortedDaily.length} registros</span>
+            <span className="ml-auto">
+              <Icon name={expanded ? 'expand_less' : 'expand_more'} size={20} className="text-ink-variant" />
+            </span>
+          </button>
+          {sortedDaily.length > 0 && <ExcelExportButton onClick={handleExport} busy={xls.busy} label="" />}
+        </div>
         {expanded && (
           <div className="mt-3 space-y-3">
             {sortedDaily.map((item, idx) => (

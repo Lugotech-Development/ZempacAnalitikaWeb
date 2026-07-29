@@ -53,23 +53,36 @@ function parseReportList(v: unknown): string[] | null {
   return Array.isArray(v) ? v.map(x => String(x).toLowerCase()) : null;
 }
 
-/** Parse `parametrosSP` (object of reportKey → params); keys lower-cased. Each
- *  value may be an object or a JSON-encoded string (the API schema types the
- *  values as `string`) — both are handled. */
+/** Parse `parametrosSP` (object of reportKey → forced params); keys lower-cased.
+ *  The API returns each report as `{ esForzado, parametros: {...} }` (values may
+ *  also arrive as a JSON-encoded string). Only *forced* entries (`esForzado`
+ *  true) scope the UI and are kept — suggested ones are prefill-only, which the
+ *  app doesn't surface yet, so they're dropped. A legacy flat object (no
+ *  `parametros` key) is kept as-is for backward compatibility. Returns the inner
+ *  params per key, which is what `forcedValue`/`forcedParamNumber` read. */
 function parseParametrosSP(v: unknown): Record<string, Record<string, unknown>> | null {
   if (!v || typeof v !== 'object' || Array.isArray(v)) return null;
-  const out: Record<string, Record<string, unknown>> = {};
-  for (const [k, val] of Object.entries(v as Record<string, unknown>)) {
-    let decoded: unknown = val;
+  const decodeObject = (raw: unknown): Record<string, unknown> | null => {
+    let decoded: unknown = raw;
     if (typeof decoded === 'string' && decoded.length > 0) {
       try {
         decoded = JSON.parse(decoded);
       } catch {
-        /* leave as string → skipped below */
+        return null;
       }
     }
-    if (decoded && typeof decoded === 'object' && !Array.isArray(decoded)) {
-      out[k.toLowerCase()] = decoded as Record<string, unknown>;
+    return decoded && typeof decoded === 'object' && !Array.isArray(decoded) ? (decoded as Record<string, unknown>) : null;
+  };
+  const out: Record<string, Record<string, unknown>> = {};
+  for (const [k, val] of Object.entries(v as Record<string, unknown>)) {
+    const obj = decodeObject(val);
+    if (!obj) continue;
+    if ('parametros' in obj) {
+      if (obj.esForzado !== true) continue; // suggested → don't lock the UI
+      const params = decodeObject(obj.parametros);
+      if (params) out[k.toLowerCase()] = params;
+    } else {
+      out[k.toLowerCase()] = obj; // legacy flat shape — treat as forced
     }
   }
   return out;
@@ -290,6 +303,52 @@ function raiseAccessBlock(block: AccessBlock): never {
   throw new AccessBlockedError(block);
 }
 
+// ─── Session teardown ───────────────────────────────────────────────────────
+
+/**
+ * Best-effort backend session revocation. Fire-and-forget: never awaited, never
+ * throws. Releases the server's single-session lock so the *next* login isn't
+ * refused with "Ya existe una sesión activa en la aplicación web".
+ *
+ * The revoke endpoint is `[Authorize]`-protected, so this only lands while
+ * [token] is still accepted by the backend — i.e. when we tear the session down
+ * for a reason OTHER than the token being rejected: a manual logout, a transient
+ * refresh failure while the token is still valid, or a backend that 401s an
+ * otherwise-valid token. When the access token itself is dead the call is
+ * refused; releasing that stranded session needs a backend revoke-by-refreshToken
+ * path (no valid bearer required) or an admin force-close.
+ */
+function revokeSession(token: string | null | undefined, refreshToken: string | null | undefined): void {
+  if (!token || !refreshToken) return;
+  try {
+    void fetch(`${UPSTREAM}/api/auth/revoke`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`
+      },
+      body: JSON.stringify({ refreshToken }),
+      keepalive: true // let it complete even if the page navigates to /login
+    }).catch(() => {});
+  } catch {
+    /* fire-and-forget */
+  }
+}
+
+/**
+ * Unrecoverable 401: the token is dead and refresh couldn't save it. Revoke the
+ * backend session first (so the single-session lock is released and the user can
+ * log back in), then clear local state and broadcast so the global modal shows.
+ * Reads the freshest session so a rotated-then-rejected token is the one revoked.
+ */
+function tearDownExpiredSession(path: string): void {
+  const dead = getSession();
+  revokeSession(dead?.token, dead?.refreshToken);
+  clearSession();
+  analytics.track(AnalyticsEvents.sessionExpired, { screen: analytics.currentScreen, endpoint: normalizeEndpoint(path) });
+  emitSessionExpired();
+}
+
 // ─── Core fetch with auth + retry on 401 ───────────────────────────────────
 
 async function authFetch(path: string, init?: RequestInit): Promise<Response> {
@@ -314,9 +373,7 @@ async function authFetch(path: string, init?: RequestInit): Promise<Response> {
   if (res.status === 401) {
     const newToken = await tryRefresh();
     if (!newToken) {
-      clearSession();
-      analytics.track(AnalyticsEvents.sessionExpired, { screen: analytics.currentScreen, endpoint: normalizeEndpoint(path) });
-      emitSessionExpired();
+      tearDownExpiredSession(path);
       throw new UnauthorizedError();
     }
     headers.Authorization = `Bearer ${newToken}`;
@@ -326,9 +383,7 @@ async function authFetch(path: string, init?: RequestInit): Promise<Response> {
       throw new NetworkError();
     }
     if (res.status === 401) {
-      clearSession();
-      analytics.track(AnalyticsEvents.sessionExpired, { screen: analytics.currentScreen, endpoint: normalizeEndpoint(path) });
-      emitSessionExpired();
+      tearDownExpiredSession(path);
       throw new UnauthorizedError();
     }
   }
@@ -390,6 +445,102 @@ async function getJson<T>(path: string, mapper: (data: unknown) => T, search?: R
     return result;
   } catch (e) {
     trackApiError(path, e, Math.round(performance.now() - started));
+    throw e;
+  }
+}
+
+// ─── Excel export (backend-generated) ───────────────────────────────────────
+// The backend (ExcelExportController) owns Excel generation and applies forced
+// ParametrosSP server-side, so the client just requests the file — passing the
+// current filters — and streams the download. Auth, 401-refresh and access
+// blocks are handled by authFetch, exactly like the JSON reads.
+
+export type ExcelReportKey =
+  | 'ventas-30'
+  | 'devoluciones-30'
+  | 'productos'
+  | 'ventas-producto-marca'
+  | 'ventas-facturador'
+  | 'cuentas-por-cobrar'
+  | 'productos-negativos'
+  | 'cuadre-productos';
+
+export interface ExcelExportParams {
+  desde?: string;
+  hasta?: string;
+  marcaId?: number;
+  sucursalId?: number;
+  top?: number;
+  lote?: number;
+}
+
+const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+
+/** Pull the download name from Content-Disposition, else a sensible fallback. */
+function excelFileName(res: Response, reportKey: string): string {
+  const cd = res.headers.get('Content-Disposition') ?? '';
+  const m = cd.match(/filename\*?=(?:UTF-8'')?"?([^";]+)"?/i);
+  if (m?.[1]) {
+    try {
+      return decodeURIComponent(m[1]);
+    } catch {
+      return m[1];
+    }
+  }
+  return `Reporte_${reportKey}.xlsx`;
+}
+
+export async function apiExcelExport(reportKey: ExcelReportKey, params?: ExcelExportParams): Promise<void> {
+  const qs = new URLSearchParams();
+  if (params?.desde) qs.set('desde', params.desde);
+  if (params?.hasta) qs.set('hasta', params.hasta);
+  if (params?.marcaId != null) qs.set('marcaId', String(params.marcaId));
+  if (params?.sucursalId != null) qs.set('sucursalId', String(params.sucursalId));
+  if (params?.top != null) qs.set('top', String(params.top));
+  if (params?.lote != null) qs.set('lote', String(params.lote));
+  const query = qs.toString();
+  const path = `/api/ExcelExport/${reportKey}${query ? `?${query}` : ''}`;
+  const endpoint = `/api/ExcelExport/${reportKey}`;
+
+  const started = performance.now();
+  try {
+    const res = await authFetch(path, { headers: { Accept: XLSX_MIME } });
+    if (!res.ok) {
+      let body: unknown = null;
+      try {
+        body = await res.json();
+      } catch {
+        /* error body may not be JSON */
+      }
+      const block = detectAccessBlock(res.status, body);
+      if (block) raiseAccessBlock(block); // throws AccessBlockedError → global modal
+      const msg =
+        (body as { message?: string; error?: string } | null)?.message ??
+        (body as { error?: string } | null)?.error ??
+        `No se pudo generar el Excel (${res.status})`;
+      throw new UpstreamApiError(res.status, msg);
+    }
+    const blob = await res.blob();
+    const filename = excelFileName(res, reportKey);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    analytics.trackSampled(AnalyticsEvents.apiRequest, {
+      endpoint,
+      method: 'GET',
+      status: res.status,
+      latency_ms: Math.round(performance.now() - started),
+      from_cache: false,
+      payload_bytes: blob.size || null,
+      ok: true
+    });
+  } catch (e) {
+    trackApiError(endpoint, e, Math.round(performance.now() - started));
     throw e;
   }
 }
@@ -460,17 +611,7 @@ export async function apiLogin(input: { empresa: string; usuario: string; passwo
 export function apiLogout(): void {
   const session = getSession();
   analytics.track(AnalyticsEvents.logout, { reason: 'user' });
-  if (session?.refreshToken && session.token) {
-    // Best-effort revocation — fire and forget
-    fetch(`${UPSTREAM}/api/auth/revoke`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${session.token}`
-      },
-      body: JSON.stringify({ refreshToken: session.refreshToken })
-    }).catch(() => {});
-  }
+  revokeSession(session?.token, session?.refreshToken);
   clearSession();
   analytics.clearIdentity();
 }
@@ -528,7 +669,9 @@ export const apiProductos = () =>
 
 export const apiCuadreCaja = (input: { sucursal: number; fDesde?: string; fHasta?: string }) =>
   getJson<RptCuadreCajaLinea[]>('/api/Reportes/analitica-lote-condensado', data => (Array.isArray(data) ? data.map(r => parseCuadreLinea(r as Record<string, unknown>)) : []), {
-    sucursal: String(forcedParamNumber('analitica-lote-condensado', ['sucursal', 'sucursalId', 'idSucursal']) ?? input.sucursal),
+    // Permission key is `cuadre-caja` (the backend grant / parametrosSP key); the
+    // endpoint slug (`analitica-lote-condensado`) is unrelated to the perm key.
+    sucursal: String(forcedParamNumber('cuadre-caja', ['sucursal', 'sucursalId', 'idSucursal']) ?? input.sucursal),
     fDesde: input.fDesde,
     fHasta: input.fHasta
   });

@@ -50,7 +50,7 @@ export function SessionExpiredModal() {
         {/* Heading */}
         <h2 className="text-xl font-extrabold text-ink mb-2">Sesión Expirada</h2>
         <p className="text-sm text-ink-soft mb-6">
-          Tu sesión ha expirado por inactividad. Por favor inicia sesión nuevamente para continuar.
+          Tu sesión ha finalizado. Por favor inicia sesión nuevamente para continuar.
         </p>
 
         {/* CTA */}

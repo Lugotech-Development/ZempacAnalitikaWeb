@@ -14,8 +14,7 @@
     "next": "^16.2.6",
     "react": "19.0.0",
     "react-dom": "19.0.0",
-    "recharts": "^2.15.0",
-    "xlsx": "^0.18.5"
+    "recharts": "^2.15.0"
   },
   "devDependencies": {
     "@svgr/webpack": "^8.1.0",

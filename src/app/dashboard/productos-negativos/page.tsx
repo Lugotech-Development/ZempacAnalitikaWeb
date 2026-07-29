@@ -2,11 +2,12 @@
 
 import { useEffect, useState } from 'react';
 import { Icon } from '@/components/icon';
-import { LockedFilter } from '@/components/common';
+import { ExcelExportButton, LockedFilter } from '@/components/common';
 import { PageHeader } from '@/components/page-header';
 import { EmptyState, ErrorState, LoadingBar, LoadingState } from '@/components/states';
 import { fmtDecimal, fmtInt } from '@/lib/format';
 import { apiProductosNegativos, apiSucursales } from '@/lib/api';
+import { useExcelExport } from '@/lib/use-excel-export';
 import { forcedNumber } from '@/lib/permissions';
 import { useApi } from '@/lib/use-api';
 import type { ProductosNegativosPage, Sucursal } from '@/lib/types';
@@ -21,6 +22,7 @@ export default function ProductosNegativosPage() {
   const [sucursalId, setSucursalId] = useState<number | null>(null); // required — auto-selected once sucursales load
   const [pagina, setPagina] = useState(1);
   const [sucursalOpen, setSucursalOpen] = useState(false);
+  const xls = useExcelExport();
 
   // If the profile fixes the sucursal (parametrosSP), lock the picker to it.
   const forcedSucursal = forcedNumber('analitica-productos-negativos', ['sucursal', 'sucursalId', 'idSucursal']);
@@ -47,6 +49,13 @@ export default function ProductosNegativosPage() {
   const sucursalActual: Sucursal | undefined = sucursalesQ.data?.find(s => s.id === sucursalId);
   const page = q.data;
   const totalPaginas = page?.totalPaginas ?? 0;
+
+  // The backend generates the full report (all rows for the sucursal), so the
+  // export no longer needs to walk the paginated list itself.
+  const handleExport = () => {
+    if (sucursalId == null) return;
+    void xls.run('productos-negativos', { sucursalId });
+  };
 
   return (
     <>
@@ -104,11 +113,16 @@ export default function ProductosNegativosPage() {
               </div>
             )}
 
-            {/* Total count for the selected sucursal */}
+            {/* Total count for the selected sucursal + export */}
             {q.status === 'success' && (
-              <div className="sm:ml-auto flex items-center gap-2 text-sm">
-                <span className="text-ink-variant">Existencias negativas:</span>
-                <span className="font-extrabold text-tertiary tabular-nums">{fmtInt(page?.totalRegistros ?? 0)}</span>
+              <div className="sm:ml-auto flex items-center gap-4">
+                <div className="flex items-center gap-2 text-sm">
+                  <span className="text-ink-variant">Existencias negativas:</span>
+                  <span className="font-extrabold text-tertiary tabular-nums">{fmtInt(page?.totalRegistros ?? 0)}</span>
+                </div>
+                {(page?.totalRegistros ?? 0) > 0 && (
+                  <ExcelExportButton onClick={handleExport} busy={xls.busy} label="" />
+                )}
               </div>
             )}
           </div>

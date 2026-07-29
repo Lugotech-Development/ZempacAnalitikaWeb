@@ -56,6 +56,40 @@ export function LockedFilter({ icon, value, note = 'Filtro fijado por tu perfil'
   );
 }
 
+/**
+ * Compact "Exportar → Excel" action, shared by every report that can download
+ * its data. Mirrors the original button on Ventas por Marca. Pass `busy` while
+ * an async export runs (e.g. paginated reports fetching every page first).
+ */
+export function ExcelExportButton({
+  onClick,
+  label = 'Exportar:',
+  busy = false,
+  disabled = false,
+  className = ''
+}: {
+  onClick: () => void;
+  /** Leading text; pass '' to render just the button. */
+  label?: string;
+  busy?: boolean;
+  disabled?: boolean;
+  className?: string;
+}) {
+  return (
+    <div className={`flex items-center gap-2 shrink-0 ${className}`}>
+      {label && <span className="text-xs font-semibold text-outline">{label}</span>}
+      <button
+        type="button"
+        onClick={onClick}
+        disabled={disabled || busy}
+        className="flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1.5 text-xs font-bold text-primary hover:bg-primary/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+        <Icon name={busy ? 'refresh' : 'download'} size={14} className={busy ? 'animate-spin' : ''} />
+        <span>{busy ? 'Exportando…' : 'Excel'}</span>
+      </button>
+    </div>
+  );
+}
+
 export function LugotechCredit({ className = '' }: { className?: string }) {
   return (
     <p className={`text-xs text-outline ${className}`}>

@@ -44,6 +44,8 @@ export type RptPantallaPrincipal = {
   margenEstimadoMesAnterior: number | null;
   porcMargenEstimadoMesActual: number | null;
   porcMargenEstimadoMesAnterior: number | null;
+  montoInventario: number | null;
+  costoInventario: number | null;
 };
 
 export type RptVenta = {
@@ -298,7 +300,9 @@ export const parsePantallaPrincipal = (j: J): RptPantallaPrincipal => ({
   margenEstimadoMesActual: num(j.MargenEstimadoMesActual),
   margenEstimadoMesAnterior: num(j.MargenEstimadoMesAnterior),
   porcMargenEstimadoMesActual: num(j.PorcMargenEstimadoMesActual),
-  porcMargenEstimadoMesAnterior: num(j.PorcMargenEstimadoMesAnterior)
+  porcMargenEstimadoMesAnterior: num(j.PorcMargenEstimadoMesAnterior),
+  montoInventario: num(j.MontoInventario),
+  costoInventario: num(j.CostoInventario)
 });
 
 export const parseVenta = (j: J): RptVenta => ({

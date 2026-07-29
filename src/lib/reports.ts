@@ -11,12 +11,12 @@
 export type ReportRoute = { href: string; reportKeys: string[] };
 
 export const REPORT_ROUTES: ReportRoute[] = [
-  { href: '/dashboard', reportKeys: ['pantalla-principal-v2'] },
+  { href: '/dashboard', reportKeys: ['pantalla-principal'] },
   { href: '/dashboard/ventas', reportKeys: ['ventas-30'] },
   { href: '/dashboard/devoluciones', reportKeys: ['devoluciones-30'] },
   { href: '/dashboard/productos', reportKeys: ['productos-mas-vendidos'] },
   { href: '/dashboard/cuentas-por-cobrar', reportKeys: ['cuentas-por-cobrar'] },
-  { href: '/dashboard/cuadre-caja', reportKeys: ['analitica-lote-condensado'] },
+  { href: '/dashboard/cuadre-caja', reportKeys: ['cuadre-caja'] },
   { href: '/dashboard/ventas-producto-marca', reportKeys: ['ventas-producto-marca'] },
   { href: '/dashboard/ventas-facturador', reportKeys: ['ventas-facturador-sucursal'] },
   { href: '/dashboard/productos-negativos', reportKeys: ['analitica-productos-negativos'] }
