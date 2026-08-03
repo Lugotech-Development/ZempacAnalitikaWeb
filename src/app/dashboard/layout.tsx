@@ -8,6 +8,7 @@ import { reportKeysForPath } from '@/lib/reports';
 import DashboardShell from './_shell';
 import { SessionExpiredModal } from '@/components/session-expired-modal';
 import { AccessBlockedModal } from '@/components/access-blocked-modal';
+import { ToastHost } from '@/components/toast';
 import { NoAccessState } from '@/components/states';
 import type { SessionInfo } from '@/lib/types';
 
@@ -48,6 +49,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     <>
       <SessionExpiredModal />
       <AccessBlockedModal />
+      <ToastHost />
       <DashboardShell session={session}>{allowed ? children : landingRedirect ? null : <NoAccessState />}</DashboardShell>
     </>
   );

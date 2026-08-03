@@ -3,13 +3,12 @@
 const APP_VERSION = '2.0.1';
 
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import { useState } from 'react';
 import { Icon, type IconName } from '@/components/icon';
 import { ZempacLogo, LugotechCredit } from '@/components/common';
 import { GlobalSearch } from '@/components/global-search';
-import { apiLogout } from '@/lib/api';
-import { invalidateAll } from '@/lib/cache';
+import { useLogout } from '@/components/logout-flow';
 import { canViewReportKeys } from '@/lib/permissions';
 import { reportKeysForPath } from '@/lib/reports';
 import type { SessionInfo } from '@/lib/types';
@@ -39,17 +38,15 @@ const NAV: { href: string; label: string; icon: IconName }[] = [
 
 export default function DashboardShell({ children, session }: { children: React.ReactNode; session: SessionInfo }) {
   const pathname = usePathname();
-  const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
-
-  const logout = () => {
-    apiLogout();
-    invalidateAll();
-    router.replace('/login');
-  };
+  // Voluntary logout is backend-confirmed: it only signs out locally once the
+  // server revokes the session, and shows a retry/cancel overlay on failure so
+  // a dropped request can't strand the single-session account.
+  const { logout, overlay } = useLogout();
 
   return (
     <div className="min-h-screen bg-surface">
+      {overlay}
       <Sidebar pathname={pathname} session={session} onLogout={logout} />
 
       {mobileOpen && (

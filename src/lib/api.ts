@@ -306,6 +306,13 @@ function raiseAccessBlock(block: AccessBlock): never {
 // ─── Session teardown ───────────────────────────────────────────────────────
 
 /**
+ * Outcome of a server-confirmed logout (see [apiLogoutConfirmed]). A voluntary
+ * logout only succeeds once the backend confirms the session was revoked; on
+ * failure `message` carries a user-facing reason for a retry/cancel dialog.
+ */
+export type LogoutResult = { ok: true } | { ok: false; message: string };
+
+/**
  * Best-effort backend session revocation. Fire-and-forget: never awaited, never
  * throws. Releases the server's single-session lock so the *next* login isn't
  * refused with "Ya existe una sesión activa en la aplicación web".
@@ -333,6 +340,62 @@ function revokeSession(token: string | null | undefined, refreshToken: string | 
   } catch {
     /* fire-and-forget */
   }
+}
+
+/**
+ * Server-confirmed revoke. Unlike [revokeSession] (fire-and-forget), this awaits
+ * the backend and reports whether the session was actually revoked. Used by the
+ * voluntary logout so we never clear local state while the single-session
+ * backend still holds a session — which would strand the account.
+ *
+ * Returns `{ ok: true }` on a 2xx (or when there is nothing to revoke). Returns
+ * a failure with a connection message when the request can't reach the server
+ * (offline / timeout) and a failure carrying the backend's message on any
+ * non-2xx.
+ */
+async function revokeSessionConfirmed(
+  token: string | null | undefined,
+  refreshToken: string | null | undefined
+): Promise<LogoutResult> {
+  // Nothing to revoke, or no bearer to authenticate the revoke: treat as done —
+  // there is no live server session this token could be stranding.
+  if (!token || !refreshToken) return { ok: true };
+
+  let res: Response;
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 15000);
+    try {
+      res = await fetch(`${UPSTREAM}/api/auth/revoke`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ refreshToken }),
+        signal: controller.signal
+      });
+    } finally {
+      clearTimeout(timer);
+    }
+  } catch {
+    return {
+      ok: false,
+      message: 'No pudimos conectar con el servidor. Revisa tu conexión a internet e inténtalo de nuevo.'
+    };
+  }
+
+  if (res.ok) return { ok: true }; // 2xx
+
+  let message = 'No se pudo cerrar la sesión en el servidor. Inténtalo de nuevo.';
+  try {
+    const b = (await res.json()) as { message?: unknown; detail?: unknown; title?: unknown };
+    const m = b?.message ?? b?.detail ?? b?.title;
+    if (typeof m === 'string' && m) message = m;
+  } catch {
+    /* keep fallback */
+  }
+  return { ok: false, message };
 }
 
 /**
@@ -608,12 +671,40 @@ export async function apiLogin(input: { empresa: string; usuario: string; passwo
   return { empresa: session.empresa, usuario: session.usuario };
 }
 
+/**
+ * Involuntary/unconditional logout: clears local state regardless of whether the
+ * backend revoke lands. Used when the backend session is already gone or the
+ * user is being force-signed-out (e.g. the access-blocked modal), so there is
+ * nothing to strand. For a voluntary, user-initiated logout use
+ * [apiLogoutConfirmed], which refuses to clear until the backend confirms.
+ */
 export function apiLogout(): void {
   const session = getSession();
   analytics.track(AnalyticsEvents.logout, { reason: 'user' });
   revokeSession(session?.token, session?.refreshToken);
   clearSession();
   analytics.clearIdentity();
+}
+
+/**
+ * Voluntary, user-initiated logout that REQUIRES the backend to confirm the
+ * session was revoked before any local state is cleared.
+ *
+ * The backend enforces a single active session per platform. If we cleared the
+ * local session while the server still held one, the account would be stranded:
+ * nobody — not even this user — could log in, and no local session would remain
+ * to retry the revoke. So local state is only cleared after a 2xx. On failure
+ * nothing changes, the user stays logged in, and the returned [LogoutResult]
+ * carries a message for the caller to surface in a retry/cancel dialog.
+ */
+export async function apiLogoutConfirmed(): Promise<LogoutResult> {
+  const session = getSession();
+  const result = await revokeSessionConfirmed(session?.token, session?.refreshToken);
+  if (!result.ok) return result;
+  analytics.track(AnalyticsEvents.logout, { reason: 'user' });
+  clearSession();
+  analytics.clearIdentity();
+  return { ok: true };
 }
 
 /**

@@ -64,6 +64,7 @@ src/
 │   ├── page-header.tsx         # <PageHeader eyebrow title subtitle icon isValidating />
 │   ├── states.tsx              # LoadingState, ErrorState, EmptyState, SkeletonBox (shimmer), LoadingBar (thin refresh line)
 │   ├── global-search.tsx       # Cmd-K style search across reports (deferred index)
+│   ├── logout-flow.tsx         # useLogout() hook: backend-confirmed logout + retry/cancel overlay
 │   └── series-chart.tsx        # Generic Area chart — always loaded via next/dynamic({ ssr: false })
 ├── lib/
 │   ├── api.ts                  # Real upstream calls + token refresh mutex + UnauthorizedError
@@ -84,6 +85,7 @@ Path alias: `@/*` → `src/*`.
 - **Session storage**: client-side **`localStorage`** key `zempac.session` holds `{ token, refreshToken, empresa, usuario }`.
 - **Token refresh**: `tryRefresh()` in [`src/lib/api.ts`](src/lib/api.ts) is mutex-guarded by a module-level `refreshPromise` so concurrent 401s only fire one `/api/auth/refresh` call.
 - **401 handling**: `authFetch()` retries the original request once with the refreshed token; if refresh fails it clears the session and throws `UnauthorizedError`. `useApi` listens for this and routes through `useRouter().replace('/login')`.
+- **Logout (single-session safe)**: the backend allows one active session per platform, so a **voluntary** logout must be **backend-confirmed** — `apiLogoutConfirmed()` awaits `POST /api/auth/revoke` and only clears `localStorage` on a 2xx; on any non-2xx / network failure it returns a `LogoutResult` and **nothing is cleared** (else the account is stranded: nobody could log in and no local session would remain to retry). The `useLogout()` hook ([`src/components/logout-flow.tsx`](src/components/logout-flow.tsx)) drives it from the shell's "Cerrar sesión" buttons — a blocking spinner, then `/login` on success or a **Reintentar / Cancelar** overlay on failure (Cancelar keeps the session so the user can retry later). `apiLogout()` (fire-and-forget revoke + unconditional clear) stays for **involuntary** teardown only: the access-blocked modal and, via `tearDownExpiredSession`, session expiry. Mirrors the Flutter app (`../ReportesZempacApp`: `AppSession.logoutConfirmed` + `lib/widgets/logout_flow.dart`).
 - **Access-block handling**: the upstream runs a middleware that can refuse any authenticated call with a JSON envelope `{ success:false, code, message, … }` (e.g. `TRIAL_VENCIDO`). `getJson` detects it via `detectAccessBlock` (in [`src/lib/access-block-events.ts`](src/lib/access-block-events.ts)) on **any** status, latches a module flag so further calls short-circuit without hitting the network, and broadcasts through `emitAccessBlocked`. The global `AccessBlockedModal` (mounted in `dashboard/layout.tsx`, alongside `SessionExpiredModal`) shows a hard, non-dismissible overlay. It is **code-agnostic**: the backend `message` is shown verbatim and only the title/icon are per-`code` (unknown codes get a default), so new block types need no code change beyond an optional `PRESENTATION` entry. Callers treat `AccessBlockedError` like `UnauthorizedError` (stop, no inline error). The latch resets in `setSession` / `clearSession`. Mirrored in the Flutter app (`../ReportesZempacApp`: `lib/models/access_block.dart` + `lib/services/access_blocked_handler.dart`, detection in `api_service.dart`).
 - **Static export caveat**: because `output: 'export'`, we have **no `/api/*` route handlers, no middleware, no `proxy.ts`**. All API calls happen from the browser directly to the upstream host. CORS must be allowed upstream. Do **not** add `route.ts` files or middleware — they won't build under `output: 'export'`.
 
@@ -94,7 +96,7 @@ Every report screen consumes data through `useApi(key, fetcher)` from [`src/lib/
 - **Cache** ([`src/lib/cache.ts`](src/lib/cache.ts)): module-scoped `Map<string, CacheEntry>` plus an in-flight `Map<string, Promise>` for single-flight dedupe, plus per-key `Map<string, Set<Subscriber>>`, plus a global `revalidateSubs` Set.
 - **Revalidation triggers** (installed once on first `useApi` mount): window `focus`, document `visibilitychange` → visible, `online`. These call `subscribeRevalidate` listeners which each refetch their key.
 - **Stale-while-revalidate**: if a cache entry exists for `key`, `useApi` returns it with `status: 'success'` instantly and triggers a background refetch. Errors during background refetch **do not** wipe cached data — they're logged to the console in dev only.
-- **Invalidation**: `invalidateAll()` is called from `apiLogout()` so the next session starts clean.
+- **Invalidation**: `invalidateAll()` runs on a successful **voluntary** logout (the `useLogout` hook) so the next session starts clean; involuntary teardown (session-expired / access-blocked modals) hard-navigates via `window.location.replace`, which drops the in-memory cache with the page.
 - **Cache keys** are short, human-readable: `'rpt:principal'`, `'rpt:ventas'`, `'rpt:devoluciones'`, `'rpt:productos'`, `'rpt:cuadre-caja'`, `'empresas:sucursales'`.
 
 Always pass a stable string key to `useApi`. Do not generate keys with `Math.random()` or `Date.now()`.
@@ -238,4 +240,5 @@ When a real endpoint becomes available:
 - Don't change design tokens to fit a one-off screen; update `DESIGN.md` and **both apps in lockstep** if a token genuinely needs to change.
 - Don't downgrade Next.js — 15.1.4 had CVE-2025-66478; stay on the latest 16.x.
 - Don't store auth state anywhere other than `localStorage` via the helpers in `src/lib/api.ts`.
+- Don't clear the session on a **voluntary** logout without a confirmed backend revoke — the single-session backend would strand the account. Use `apiLogoutConfirmed()` / the `useLogout()` hook; only involuntary teardown (`apiLogout`) may clear unconditionally.
 - Don't create markdown docs unless explicitly asked.
