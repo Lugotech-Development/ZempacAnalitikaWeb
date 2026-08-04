@@ -5,12 +5,18 @@ import { Icon } from '@/components/icon';
 import { EyebrowLabel, ExcelExportButton, LockedFilter } from '@/components/common';
 import { PageHeader } from '@/components/page-header';
 import { EmptyState, ErrorState, LoadingBar, LoadingState } from '@/components/states';
-import { fmtInt } from '@/lib/format';
+import { fmtDecimal, fmtInt, fmtMoney } from '@/lib/format';
 import { apiSobreStockProductos, apiSucursales } from '@/lib/api';
 import { useExcelExport } from '@/lib/use-excel-export';
 import { forcedNumber } from '@/lib/permissions';
 import { useApi } from '@/lib/use-api';
-import { derivarFila } from '@/lib/sobre-stock';
+import {
+  DIAS_SIN_VENTA_ALERTA,
+  derivarFila,
+  resumir,
+  type Severidad,
+  type SobreStockResumen
+} from '@/lib/sobre-stock';
 import type { RptSobreStockProducto } from '@/lib/types';
 
 // Ventana de historial que alimenta el PromedioDiario (`diasAnalisis`).
@@ -22,6 +28,21 @@ const UMBRAL_DEF = 45;
 // Cuántos productos devuelve el SP (`topN`).
 const TOPS = [10, 20, 50, 100];
 const TOP_DEF = 20;
+
+// Shared by the summary tiles, the severity bar and the row cards.
+const TONO: Record<Severidad, { pill: string; barra: string }> = {
+  normal: { pill: 'bg-positive-bg text-positive-fg', barra: 'bg-positive-fg' },
+  moderado: { pill: 'bg-primary/10 text-primary', barra: 'bg-primary' },
+  alto: { pill: 'bg-primary-container/10 text-primary-container', barra: 'bg-primary-container' },
+  critico: { pill: 'bg-tertiary/10 text-tertiary', barra: 'bg-tertiary' }
+};
+
+const SEVERIDAD_LABEL: Record<Severidad, string> = {
+  normal: 'Normal',
+  moderado: 'Moderado',
+  alto: 'Alto',
+  critico: 'Crítico'
+};
 
 export default function SobreStockPage() {
   const sucursalesQ = useApi('sucursales', apiSucursales);
@@ -53,6 +74,8 @@ export default function SobreStockPage() {
     const hoy = new Date();
     return (q.data ?? []).map(r => derivarFila(r, umbral, hoy));
   }, [q.data, umbral]);
+
+  const resumen = useMemo(() => resumir(filas), [filas]);
 
   const sucursalActual = sucursalesQ.data?.find(s => s.id === efectivaSucursal);
 
@@ -154,9 +177,89 @@ export default function SobreStockPage() {
         (filas.length === 0 ? (
           <EmptyState message="Sin productos con ventas en la ventana seleccionada." />
         ) : (
-          <p className="text-sm text-ink-variant tabular-nums">{fmtInt(filas.length)} productos</p>
+          <>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              <Tile
+                label="Capital inmovilizado"
+                value={fmtMoney(resumen.capitalInmovilizado)}
+                subtext={`de ${fmtMoney(resumen.valorExistencia)} en existencia`}
+                tone="tertiary"
+              />
+              <Tile
+                label="Sobre stock"
+                value={fmtInt(resumen.sobreStock)}
+                subtext={`de ${fmtInt(resumen.total)} productos`}
+                tone="tertiary"
+              />
+              <Tile label="Unidades excedentes" value={fmtDecimal(resumen.unidadesExcedentes)} tone="primary-container" />
+              <Tile label={`Sin venta +${DIAS_SIN_VENTA_ALERTA} d`} value={fmtInt(resumen.sinVentaReciente)} tone="primary" />
+            </div>
+
+            <BarraSeveridad resumen={resumen} />
+          </>
         ))}
     </>
+  );
+}
+
+function Tile({
+  label,
+  value,
+  subtext,
+  tone
+}: {
+  label: string;
+  value: string;
+  subtext?: string;
+  tone: 'positive' | 'primary' | 'primary-container' | 'tertiary';
+}) {
+  const cls =
+    tone === 'positive'
+      ? 'bg-positive-bg text-positive-fg'
+      : tone === 'tertiary'
+        ? 'bg-tertiary/10 text-tertiary'
+        : tone === 'primary-container'
+          ? 'bg-primary-container/10 text-primary-container'
+          : 'bg-primary/10 text-primary';
+  return (
+    <div className="card p-5">
+      <span className={`pill ${cls}`}>{label}</span>
+      <p className="mt-3 text-xl font-extrabold tracking-tight tabular-nums break-words">{value}</p>
+      {subtext && <p className="mt-1 text-[11px] text-ink-variant tabular-nums">{subtext}</p>}
+    </div>
+  );
+}
+
+/** Capital inmovilizado segmentado por severidad — pesado por dinero, no por
+ *  conteo, para que un solo producto crítico caro domine la lectura. Las filas
+ *  NORMAL tienen excedente 0 por definición, así que no aparecen. */
+function BarraSeveridad({ resumen }: { resumen: SobreStockResumen }) {
+  const total = resumen.capitalInmovilizado;
+  if (total <= 0) return null;
+  return (
+    <div className="mt-4 card p-6">
+      <EyebrowLabel>Capital inmovilizado por severidad</EyebrowLabel>
+      <div className="mt-4 flex h-3 w-full overflow-hidden rounded-pill bg-surface-mid">
+        {resumen.porSeveridad.map(s => (
+          <div
+            key={s.severidad}
+            className={TONO[s.severidad].barra}
+            style={{ width: `${(s.capital / total) * 100}%` }}
+            aria-label={`${SEVERIDAD_LABEL[s.severidad]}: ${fmtMoney(s.capital)}`}
+          />
+        ))}
+      </div>
+      <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-x-4 gap-y-2">
+        {resumen.porSeveridad.map(s => (
+          <div key={s.severidad} className="flex items-center gap-2 min-w-0">
+            <span className={`h-2.5 w-2.5 rounded-full shrink-0 ${TONO[s.severidad].barra}`} />
+            <p className="text-[12px] text-ink-variant truncate">{SEVERIDAD_LABEL[s.severidad]}</p>
+            <p className="text-[12px] font-extrabold tabular-nums text-ink">{fmtMoney(s.capital)}</p>
+            <p className="text-[11px] text-outline tabular-nums">({fmtInt(s.productos)})</p>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 
