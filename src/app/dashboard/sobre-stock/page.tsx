@@ -5,16 +5,21 @@ import { Icon } from '@/components/icon';
 import { EyebrowLabel, ExcelExportButton, LockedFilter } from '@/components/common';
 import { PageHeader } from '@/components/page-header';
 import { EmptyState, ErrorState, LoadingBar, LoadingState } from '@/components/states';
-import { fmtDecimal, fmtInt, fmtMoney } from '@/lib/format';
+import { fmtDate, fmtDecimal, fmtInt, fmtMoney } from '@/lib/format';
 import { apiSobreStockProductos, apiSucursales } from '@/lib/api';
 import { useExcelExport } from '@/lib/use-excel-export';
 import { forcedNumber } from '@/lib/permissions';
 import { useApi } from '@/lib/use-api';
 import {
   DIAS_SIN_VENTA_ALERTA,
+  ESCALA_BARRA,
+  ORDENES,
   derivarFila,
+  ordenar,
   resumir,
+  type OrdenId,
   type Severidad,
+  type SobreStockFila,
   type SobreStockResumen
 } from '@/lib/sobre-stock';
 import type { RptSobreStockProducto } from '@/lib/types';
@@ -44,6 +49,13 @@ const SEVERIDAD_LABEL: Record<Severidad, string> = {
   critico: 'Crítico'
 };
 
+// La barra de cada fila llega llena a ESCALA_BARRA× el umbral, así que la marca
+// del umbral cae siempre en este porcentaje del ancho.
+const MARCA_UMBRAL_PCT = 100 / ESCALA_BARRA;
+
+// Estados que sabemos colorear; cualquier otro se muestra verbatim en neutro.
+const ESTADOS_CONOCIDOS = new Set(['NORMAL', 'SOBRE STOCK']);
+
 export default function SobreStockPage() {
   const sucursalesQ = useApi('sucursales', apiSucursales);
   const [sucursalId, setSucursalId] = useState<number | null>(null); // null = todas
@@ -51,6 +63,8 @@ export default function SobreStockPage() {
   const [dias, setDias] = useState(VENTANA_DEF);
   const [umbral, setUmbral] = useState(UMBRAL_DEF);
   const [top, setTop] = useState(TOP_DEF);
+  const [orden, setOrden] = useState<OrdenId>('dias');
+  const [soloSobreStock, setSoloSobreStock] = useState(false);
   const xls = useExcelExport();
 
   // If the profile fixes the sucursal (parametrosSP), it wins over the picker —
@@ -76,6 +90,11 @@ export default function SobreStockPage() {
   }, [q.data, umbral]);
 
   const resumen = useMemo(() => resumir(filas), [filas]);
+
+  const visibles = useMemo(() => {
+    const base = soloSobreStock ? filas.filter(f => f.sobreStock) : filas;
+    return ordenar(base, orden);
+  }, [filas, soloSobreStock, orden]);
 
   const sucursalActual = sucursalesQ.data?.find(s => s.id === efectivaSucursal);
 
@@ -196,9 +215,130 @@ export default function SobreStockPage() {
             </div>
 
             <BarraSeveridad resumen={resumen} />
+
+            <div className="mt-6 flex flex-col sm:flex-row sm:items-center gap-3">
+              <p className="text-sm text-ink-variant tabular-nums">
+                {fmtInt(resumen.total)} productos · {fmtInt(resumen.sobreStock)} sobre stock
+              </p>
+              <div className="sm:ml-auto flex items-center gap-2 overflow-x-auto -mx-1 px-1">
+                {ORDENES.map(o => (
+                  <button
+                    key={o.id}
+                    type="button"
+                    onClick={() => setOrden(o.id)}
+                    className={`whitespace-nowrap rounded-full px-4 py-1.5 text-xs font-bold transition-colors ${
+                      orden === o.id ? 'bg-primary text-white' : 'bg-surface-low text-ink-variant hover:bg-surface-mid'
+                    }`}>
+                    {o.label}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => setSoloSobreStock(v => !v)}
+                  aria-pressed={soloSobreStock}
+                  className={`whitespace-nowrap flex items-center gap-1.5 rounded-full px-4 py-1.5 text-xs font-bold transition-colors ${
+                    soloSobreStock ? 'bg-tertiary/10 text-tertiary' : 'bg-surface-low text-ink-variant hover:bg-surface-mid'
+                  }`}>
+                  <Icon name={soloSobreStock ? 'check_circle' : 'radio_button_unchecked'} size={14} />
+                  Solo sobre stock
+                </button>
+              </div>
+            </div>
+
+            {visibles.length === 0 ? (
+              <div className="mt-4">
+                <EmptyState message="Ningún producto supera el umbral seleccionado." />
+              </div>
+            ) : (
+              <div className="mt-4 space-y-3">
+                {visibles.map((f, i) => (
+                  <FilaCard key={`${f.row.docNum ?? 'r'}-${i}`} f={f} rank={i + 1} umbral={umbral} dias={dias} />
+                ))}
+              </div>
+            )}
           </>
         ))}
     </>
+  );
+}
+
+function FilaCard({ f, rank, umbral, dias }: { f: SobreStockFila; rank: number; umbral: number; dias: number }) {
+  const unidad = f.row.unidadVenta?.trim() || 'uds';
+  const tono = TONO[f.severidad];
+  // Anclar la barra al umbral y no al máximo de la lista: con un outlier de
+  // 1,640 días, escalar al máximo dejaría todo lo demás plano.
+  const ancho = Math.min(1, (f.row.diasDeInventario ?? 0) / (ESCALA_BARRA * umbral));
+  const estadoRaw = (f.row.estado ?? '').trim();
+  const estadoConocido = ESTADOS_CONOCIDOS.has(estadoRaw.toUpperCase());
+  const sinCosto = f.row.costo == null || f.row.costo === 0;
+
+  return (
+    <div className="card-bordered p-5">
+      <div className="flex items-start gap-3">
+        <div
+          className={`h-8 w-8 rounded-[10px] flex items-center justify-center text-[13px] font-extrabold shrink-0 tabular-nums ${
+            rank <= 3 ? 'bg-primary-container/15 text-primary' : 'bg-surface-low text-ink-variant'
+          }`}>
+          #{rank}
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-extrabold text-ink line-clamp-2">{f.row.producto ?? '—'}</p>
+          <p className="text-[11px] text-ink-variant mt-0.5 tabular-nums">
+            Código {f.row.docNum ?? '—'} · {unidad}
+          </p>
+        </div>
+        <div className="text-right shrink-0">
+          <p className="text-base font-extrabold tracking-tight tabular-nums">{fmtDecimal(f.row.diasDeInventario)} días</p>
+          {!sinCosto && (
+            <p className="text-[11px] font-bold text-tertiary tabular-nums">{fmtMoney(f.capitalInmovilizado)} inmovilizado</p>
+          )}
+        </div>
+      </div>
+
+      <p className="mt-2 text-[11px] text-ink-variant tabular-nums">
+        Última venta {fmtDate(f.row.ultimaVenta)}
+        {f.diasSinVenta != null && ` · hace ${fmtInt(f.diasSinVenta)} d`}
+      </p>
+
+      <div className="relative mt-3">
+        <div className="h-1.5 rounded-pill bg-surface-mid overflow-hidden">
+          <div className={`h-full ${tono.barra}`} style={{ width: `${ancho * 100}%` }} />
+        </div>
+        <span className="absolute top-0 h-1.5 w-px bg-ink/40" style={{ left: `${MARCA_UMBRAL_PCT}%` }} aria-hidden />
+      </div>
+      <div className="relative h-4 mt-0.5">
+        <span
+          className="absolute text-[10px] text-outline tabular-nums -translate-x-1/2 whitespace-nowrap"
+          style={{ left: `${MARCA_UMBRAL_PCT}%` }}>
+          umbral {fmtInt(umbral)} d
+        </span>
+      </div>
+
+      <div className="mt-2 flex flex-wrap items-center gap-1.5">
+        <span
+          className={`inline-flex items-center text-[11px] font-bold px-2.5 py-1 rounded-pill ${
+            estadoConocido ? tono.pill : 'bg-ink-variant/10 text-ink-variant'
+          }`}>
+          {estadoRaw || SEVERIDAD_LABEL[f.severidad]}
+        </span>
+        <Chip text={`${fmtDecimal(f.ratioUmbral)}× el umbral`} />
+        <Chip text={`Excedente ${fmtDecimal(f.excedente)} ${unidad}`} />
+        {sinCosto ? (
+          <Chip text="Costo no disponible" />
+        ) : (
+          <Chip text={`Existencia ${fmtDecimal(f.row.existenciaActual)} ${unidad} · ${fmtMoney(f.valorExistencia)}`} />
+        )}
+        <Chip text={`${fmtDecimal(f.row.vendidoEnPeriodo)} en ${fmtInt(dias)} d · ${fmtDecimal(f.row.promedioDiario)}/día`} />
+      </div>
+    </div>
+  );
+}
+
+function Chip({ text }: { text: string }) {
+  return (
+    <span className="inline-flex items-center text-[11px] font-bold px-2.5 py-1 rounded-pill bg-ink-variant/10 text-ink-variant tabular-nums">
+      {text}
+    </span>
   );
 }
 
