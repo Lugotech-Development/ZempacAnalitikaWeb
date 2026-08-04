@@ -33,7 +33,8 @@ const NAV: { href: string; label: string; icon: IconName }[] = [
   },
   { href: '/dashboard/ventas-producto-marca', label: 'Ventas por Marca', icon: 'sell' },
   { href: '/dashboard/ventas-facturador', label: 'Ventas por Facturador', icon: 'badge' },
-  { href: '/dashboard/productos-negativos', label: 'Productos Negativos', icon: 'warning' }
+  { href: '/dashboard/productos-negativos', label: 'Productos Negativos', icon: 'warning' },
+  { href: '/dashboard/sobre-stock', label: 'Sobre Stock', icon: 'inventory_2' }
 ];
 
 export default function DashboardShell({ children, session }: { children: React.ReactNode; session: SessionInfo }) {
