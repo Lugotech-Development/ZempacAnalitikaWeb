@@ -6,7 +6,7 @@ import { detectAccessBlock, emitAccessBlocked, type AccessBlock } from './access
 import { analytics } from './analytics/analytics';
 import { AnalyticsEvents } from './analytics/events';
 
-import type { Marca, ProductosNegativosPage, RptCuadreCajaLinea, RptCuentasPorCobrar, RptCxcDetalleFactura, RptDevolucion, RptLote, RptLoteCondensadoLinea, RptPantallaPrincipal, RptProductoMasVendido, RptProductoPorLote, RptVenta, RptVentaFacturador, RptVentaProductoMarca, SessionInfo, Sucursal } from './types';
+import type { Marca, ProductosNegativosPage, RptCuadreCajaLinea, RptCuentasPorCobrar, RptCxcDetalleFactura, RptDevolucion, RptLote, RptLoteCondensadoLinea, RptPantallaPrincipal, RptProductoMasVendido, RptProductoPorLote, RptSobreStockProducto, RptVenta, RptVentaFacturador, RptVentaProductoMarca, SessionInfo, Sucursal } from './types';
 import {
   parseCuadreLinea,
   parseCxcAntiguedad,
@@ -24,6 +24,7 @@ import {
   parseVenta,
   parseVentaFacturador,
   parseMarca,
+  parseSobreStock,
   parseVentaProductoMarca
 } from './types';
 
@@ -526,6 +527,7 @@ export type ExcelReportKey =
   | 'ventas-facturador'
   | 'cuentas-por-cobrar'
   | 'productos-negativos'
+  | 'sobre-stock-productos'
   | 'cuadre-productos';
 
 export interface ExcelExportParams {
@@ -535,6 +537,8 @@ export interface ExcelExportParams {
   sucursalId?: number;
   top?: number;
   lote?: number;
+  diasAnalisis?: number;
+  umbralDiasSobreStock?: number;
 }
 
 const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
@@ -561,6 +565,8 @@ export async function apiExcelExport(reportKey: ExcelReportKey, params?: ExcelEx
   if (params?.sucursalId != null) qs.set('sucursalId', String(params.sucursalId));
   if (params?.top != null) qs.set('top', String(params.top));
   if (params?.lote != null) qs.set('lote', String(params.lote));
+  if (params?.diasAnalisis != null) qs.set('diasAnalisis', String(params.diasAnalisis));
+  if (params?.umbralDiasSobreStock != null) qs.set('umbralDiasSobreStock', String(params.umbralDiasSobreStock));
   const query = qs.toString();
   const path = `/api/ExcelExport/${reportKey}${query ? `?${query}` : ''}`;
   const endpoint = `/api/ExcelExport/${reportKey}`;
@@ -805,6 +811,32 @@ export const apiProductosNegativos = (input: { sucursal: number; pagina: number;
     pagina: String(input.pagina),
     porPagina: String(input.porPagina)
   });
+
+// ─── Sobre Stock de Productos ─────────────────────────────────────────────
+// Top-N products with the most days of inventory, among those that sold at
+// least once in the analysis window. Every param is optional upstream (the SP
+// has its own defaults); `sucursalId` is omitted entirely for "Todas las
+// sucursales" — getJson drops undefined values from the query string.
+
+export const apiSobreStockProductos = (input: {
+  diasAnalisis: number;
+  topN: number;
+  umbralDiasSobreStock: number;
+  sucursalId?: number;
+}) => {
+  const forced = forcedParamNumber('sobre-stock-productos', ['sucursalId', 'sucursal', 'idSucursal']);
+  const sucursalId = forced ?? input.sucursalId;
+  return getJson<RptSobreStockProducto[]>(
+    '/api/reportes/sobre-stock-productos',
+    data => (Array.isArray(data) ? data.map(r => parseSobreStock(r as Record<string, unknown>)) : []),
+    {
+      diasAnalisis: String(input.diasAnalisis),
+      topN: String(input.topN),
+      umbralDiasSobreStock: String(input.umbralDiasSobreStock),
+      sucursalId: sucursalId != null ? String(sucursalId) : undefined
+    }
+  );
+};
 
 // ─── Cuentas por Cobrar (CxC) ────────────────────────────────────────────
 // The page consumes 3 sub-endpoints. We fetch them in parallel through a

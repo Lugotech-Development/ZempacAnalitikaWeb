@@ -661,3 +661,32 @@ export function parseMarca(j: J): Marca {
     nombre: str(j['NombreMarca']) ?? str(j['nombreMarca']) ?? str(j['Marca']) ?? str(j['marca']) ?? str(j['Nombre']) ?? str(j['nombre']),
   };
 }
+
+// ─── Sobre Stock de Productos ────────────────────────────────────────────────
+
+export type RptSobreStockProducto = {
+  docNum: number | null;
+  producto: string | null;
+  unidadVenta: string | null;
+  costo: number | null;
+  ultimaVenta: string | null;
+  vendidoEnPeriodo: number | null;
+  promedioDiario: number | null;
+  existenciaActual: number | null;
+  diasDeInventario: number | null;
+  /** 'SOBRE STOCK' | 'NORMAL' today; render unknown values verbatim. */
+  estado: string | null;
+};
+
+export const parseSobreStock = (j: J): RptSobreStockProducto => ({
+  docNum: num(j.DocNum ?? j.docNum),
+  producto: str(j.Producto ?? j.producto),
+  unidadVenta: str(j.UnidadVenta ?? j.unidadVenta),
+  costo: num(j.Costo ?? j.costo),
+  ultimaVenta: str(j.UltimaVenta ?? j.ultimaVenta),
+  vendidoEnPeriodo: num(j.VendidoEnPeriodo ?? j.vendidoEnPeriodo),
+  promedioDiario: num(j.PromedioDiario ?? j.promedioDiario),
+  existenciaActual: num(j.ExistenciaActual ?? j.existenciaActual),
+  diasDeInventario: num(j.DiasDeInventario ?? j.diasDeInventario),
+  estado: str(j.Estado ?? j.estado)
+});
