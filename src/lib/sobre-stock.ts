@@ -27,9 +27,17 @@ const MS_POR_DIA = 86_400_000;
 /** Products with no sale in this many days are counted as parados in the summary. */
 export const DIAS_SIN_VENTA_ALERTA = 30;
 
-/** Full width of a row's bar = this many times the umbral, so the umbral marker
- *  always sits at 1/ESCALA_BARRA of the width. */
-export const ESCALA_BARRA = 5;
+export type Cobertura = { valor: number; unidad: 'días' | 'años' };
+
+/**
+ * Days of inventory become unreadable fast — a product selling 0.01/día with 655
+ * units on hand shows 58,950 días, which nobody parses as "161 años". Anything
+ * past two years is expressed in years instead.
+ */
+export function coberturaLegible(dias: number | null): Cobertura {
+  const d = dias ?? 0;
+  return d >= 730 ? { valor: d / 365, unidad: 'años' } : { valor: d, unidad: 'días' };
+}
 
 /**
  * Whole days between [iso] and [hoy], both truncated to local midnight.

@@ -12,8 +12,8 @@ import { forcedNumber } from '@/lib/permissions';
 import { useApi } from '@/lib/use-api';
 import {
   DIAS_SIN_VENTA_ALERTA,
-  ESCALA_BARRA,
   ORDENES,
+  coberturaLegible,
   derivarFila,
   ordenar,
   resumir,
@@ -48,10 +48,6 @@ const SEVERIDAD_LABEL: Record<Severidad, string> = {
   alto: 'Alto',
   critico: 'Crítico'
 };
-
-// La barra de cada fila llega llena a ESCALA_BARRA× el umbral, así que la marca
-// del umbral cae siempre en este porcentaje del ancho.
-const MARCA_UMBRAL_PCT = 100 / ESCALA_BARRA;
 
 // Estados que sabemos colorear; cualquier otro se muestra verbatim en neutro.
 const ESTADOS_CONOCIDOS = new Set(['NORMAL', 'SOBRE STOCK']);
@@ -95,6 +91,10 @@ export default function SobreStockPage() {
     const base = soloSobreStock ? filas.filter(f => f.sobreStock) : filas;
     return ordenar(base, orden);
   }, [filas, soloSobreStock, orden]);
+
+  // Las barras de cada fila son participación en el capital, así que se escalan
+  // contra el mayor de la lista visible.
+  const maxCapital = useMemo(() => Math.max(0, ...visibles.map(f => f.capitalInmovilizado)), [visibles]);
 
   const sucursalActual = sucursalesQ.data?.find(s => s.id === efectivaSucursal);
 
@@ -183,8 +183,8 @@ export default function SobreStockPage() {
         </div>
 
         <div className="mt-4 flex flex-col sm:flex-row sm:items-start gap-4 sm:gap-6">
-          <NumPills label="Ventana" values={VENTANAS} value={dias} onChange={setDias} format={v => `${v} d`} />
-          <NumPills label="Umbral" values={UMBRALES} value={umbral} onChange={setUmbral} format={v => `${v} d`} />
+          <NumPills label="Ventas de los últimos" values={VENTANAS} value={dias} onChange={setDias} format={v => `${v} días`} />
+          <NumPills label="Sobre stock desde" values={UMBRALES} value={umbral} onChange={setUmbral} format={v => `${v} días`} />
           <NumPills label="Mostrar" values={TOPS} value={top} onChange={setTop} format={v => `Top ${v}`} />
         </div>
       </div>
@@ -213,6 +213,12 @@ export default function SobreStockPage() {
               <Tile label="Unidades excedentes" value={fmtDecimal(resumen.unidadesExcedentes)} tone="primary-container" />
               <Tile label={`Sin venta +${DIAS_SIN_VENTA_ALERTA} d`} value={fmtInt(resumen.sinVentaReciente)} tone="primary" />
             </div>
+
+            <p className="mt-3 text-[11px] text-outline">
+              El <span className="font-bold">capital inmovilizado</span> son las unidades que sobran —las que exceden {fmtInt(umbral)} días de
+              cobertura según su venta diaria— multiplicadas por su costo. El <span className="font-bold">excedente</span> es ese mismo sobrante
+              expresado en unidades.
+            </p>
 
             <BarraSeveridad resumen={resumen} />
 
@@ -252,7 +258,7 @@ export default function SobreStockPage() {
             ) : (
               <div className="mt-4 space-y-3">
                 {visibles.map((f, i) => (
-                  <FilaCard key={`${f.row.docNum ?? 'r'}-${i}`} f={f} rank={i + 1} umbral={umbral} dias={dias} />
+                  <FilaCard key={`${f.row.docNum ?? 'r'}-${i}`} f={f} rank={i + 1} maxCapital={maxCapital} dias={dias} />
                 ))}
               </div>
             )}
@@ -262,12 +268,14 @@ export default function SobreStockPage() {
   );
 }
 
-function FilaCard({ f, rank, umbral, dias }: { f: SobreStockFila; rank: number; umbral: number; dias: number }) {
+function FilaCard({ f, rank, maxCapital, dias }: { f: SobreStockFila; rank: number; maxCapital: number; dias: number }) {
   const unidad = f.row.unidadVenta?.trim() || 'uds';
   const tono = TONO[f.severidad];
-  // Anclar la barra al umbral y no al máximo de la lista: con un outlier de
-  // 1,640 días, escalar al máximo dejaría todo lo demás plano.
-  const ancho = Math.min(1, (f.row.diasDeInventario ?? 0) / (ESCALA_BARRA * umbral));
+  const cobertura = coberturaLegible(f.row.diasDeInventario);
+  // Participación en el capital: anclar la barra al umbral no servía —con
+  // productos a 1,300× el umbral toda barra salía llena. Contra el mayor de la
+  // lista, el ancho vuelve a distinguir una fila de otra.
+  const share = maxCapital > 0 ? f.capitalInmovilizado / maxCapital : 0;
   const estadoRaw = (f.row.estado ?? '').trim();
   const estadoConocido = ESTADOS_CONOCIDOS.has(estadoRaw.toUpperCase());
   const sinCosto = f.row.costo == null || f.row.costo === 0;
@@ -288,10 +296,10 @@ function FilaCard({ f, rank, umbral, dias }: { f: SobreStockFila; rank: number; 
           </p>
         </div>
         <div className="text-right shrink-0">
-          <p className="text-base font-extrabold tracking-tight tabular-nums">{fmtDecimal(f.row.diasDeInventario)} días</p>
-          {!sinCosto && (
-            <p className="text-[11px] font-bold text-tertiary tabular-nums">{fmtMoney(f.capitalInmovilizado)} inmovilizado</p>
-          )}
+          <p className="text-base font-extrabold tracking-tight tabular-nums">
+            {fmtDecimal(cobertura.valor)} {cobertura.unidad}
+          </p>
+          <p className="text-[11px] text-outline">de inventario</p>
         </div>
       </div>
 
@@ -300,28 +308,24 @@ function FilaCard({ f, rank, umbral, dias }: { f: SobreStockFila; rank: number; 
         {f.diasSinVenta != null && ` · hace ${fmtInt(f.diasSinVenta)} d`}
       </p>
 
-      <div className="relative mt-3">
-        <div className="h-1.5 rounded-pill bg-surface-mid overflow-hidden">
-          <div className={`h-full ${tono.barra}`} style={{ width: `${ancho * 100}%` }} />
+      {/* Participación de esta fila en el capital inmovilizado de la lista */}
+      <div className="mt-3 flex items-center gap-3">
+        <div className="flex-1 h-2 rounded-pill bg-surface-mid overflow-hidden">
+          <div className={`h-full ${tono.barra}`} style={{ width: `${share * 100}%` }} />
         </div>
-        <span className="absolute top-0 h-1.5 w-px bg-ink/40" style={{ left: `${MARCA_UMBRAL_PCT}%` }} aria-hidden />
-      </div>
-      <div className="relative h-4 mt-0.5">
-        <span
-          className="absolute text-[10px] text-outline tabular-nums -translate-x-1/2 whitespace-nowrap"
-          style={{ left: `${MARCA_UMBRAL_PCT}%` }}>
-          umbral {fmtInt(umbral)} d
-        </span>
+        <p className="shrink-0 text-right tabular-nums">
+          <span className="text-[13px] font-extrabold text-tertiary">{sinCosto ? '—' : fmtMoney(f.capitalInmovilizado)}</span>
+          <span className="ml-1.5 text-[10px] font-bold text-outline">{fmtInt(share * 100)}%</span>
+        </p>
       </div>
 
-      <div className="mt-2 flex flex-wrap items-center gap-1.5">
+      <div className="mt-3 flex flex-wrap items-center gap-1.5">
         <span
           className={`inline-flex items-center text-[11px] font-bold px-2.5 py-1 rounded-pill ${
             estadoConocido ? tono.pill : 'bg-ink-variant/10 text-ink-variant'
           }`}>
           {estadoRaw || SEVERIDAD_LABEL[f.severidad]}
         </span>
-        <Chip text={`${fmtDecimal(f.ratioUmbral)}× el umbral`} />
         <Chip text={`Excedente ${fmtDecimal(f.excedente)} ${unidad}`} />
         {sinCosto ? (
           <Chip text="Costo no disponible" />
@@ -375,12 +379,15 @@ function Tile({
  *  NORMAL tienen excedente 0 por definición, así que no aparecen. */
 function BarraSeveridad({ resumen }: { resumen: SobreStockResumen }) {
   const total = resumen.capitalInmovilizado;
-  if (total <= 0) return null;
+  // Sólo los tramos con capital: mostrar "Moderado $0.00 (0)" era puro ruido
+  // cuando todo el capital cae en un solo tramo.
+  const segmentos = resumen.porSeveridad.filter(s => s.capital > 0);
+  if (total <= 0 || segmentos.length === 0) return null;
   return (
     <div className="mt-4 card p-6">
       <EyebrowLabel>Capital inmovilizado por severidad</EyebrowLabel>
       <div className="mt-4 flex h-3 w-full overflow-hidden rounded-pill bg-surface-mid">
-        {resumen.porSeveridad.map(s => (
+        {segmentos.map(s => (
           <div
             key={s.severidad}
             className={TONO[s.severidad].barra}
@@ -389,13 +396,13 @@ function BarraSeveridad({ resumen }: { resumen: SobreStockResumen }) {
           />
         ))}
       </div>
-      <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-x-4 gap-y-2">
-        {resumen.porSeveridad.map(s => (
+      <div className="mt-4 flex flex-wrap gap-x-6 gap-y-2">
+        {segmentos.map(s => (
           <div key={s.severidad} className="flex items-center gap-2 min-w-0">
             <span className={`h-2.5 w-2.5 rounded-full shrink-0 ${TONO[s.severidad].barra}`} />
             <p className="text-[12px] text-ink-variant truncate">{SEVERIDAD_LABEL[s.severidad]}</p>
             <p className="text-[12px] font-extrabold tabular-nums text-ink">{fmtMoney(s.capital)}</p>
-            <p className="text-[11px] text-outline tabular-nums">({fmtInt(s.productos)})</p>
+            <p className="text-[11px] text-outline tabular-nums">({fmtInt(s.productos)} productos)</p>
           </div>
         ))}
       </div>
