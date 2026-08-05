@@ -273,7 +273,8 @@ asumía un rango de cobertura que no existe. Un producto típico del top-20 vend
 | `58,950.59 días` no se lee como "161 años" | `coberturaLegible()` cambia a **años** pasados los 730 días |
 | Chip `1,310.01× el umbral` no es accionable a esa magnitud | Chip eliminado |
 | Leyenda con `Moderado $0.00 (0)` · `Alto $0.00 (0)` — todo el capital cae en un solo tramo | Se ocultan los tramos sin capital |
-| "Ventana" y "Umbral" son los nombres de los parámetros del endpoint, no lenguaje de usuario | **"Ventas de los últimos"** y **"Sobre stock desde"** |
+| "Ventana" y "Umbral" son los nombres de los parámetros del endpoint, no lenguaje de usuario | **"Ventas de los últimos"** y **"Sobre stock: más de"** |
+| "Sobre stock desde 45 días" se leyó como si el umbral mirara hacia atrás; la duda natural es si debería decir "hasta" | El umbral es el **piso** de la zona de problema (`DiasDeInventario > umbral` ⇒ sobre stock), así que "hasta" lo invertiría. Se explicita la dirección: **"Sobre stock: más de 45 días"**. El mismo número admite la lectura hacia adelante ("cobertura que estoy dispuesto a mantener"), que es la que ya usa la línea de ayuda al definir el excedente. |
 | Las métricas no se entendían sin explicación | Línea de ayuda bajo los tiles definiendo capital inmovilizado y excedente |
 
 **Sin cambio (decisiones conscientes):** los tramos de severidad siguen en 2× / 5×

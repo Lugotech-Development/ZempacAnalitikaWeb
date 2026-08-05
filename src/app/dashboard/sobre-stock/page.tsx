@@ -184,7 +184,7 @@ export default function SobreStockPage() {
 
         <div className="mt-4 flex flex-col sm:flex-row sm:items-start gap-4 sm:gap-6">
           <NumPills label="Ventas de los últimos" values={VENTANAS} value={dias} onChange={setDias} format={v => `${v} días`} />
-          <NumPills label="Sobre stock desde" values={UMBRALES} value={umbral} onChange={setUmbral} format={v => `${v} días`} />
+          <NumPills label="Sobre stock: más de" values={UMBRALES} value={umbral} onChange={setUmbral} format={v => `${v} días`} />
           <NumPills label="Mostrar" values={TOPS} value={top} onChange={setTop} format={v => `Top ${v}`} />
         </div>
       </div>
