@@ -150,7 +150,9 @@ Sin hex nuevos, sin librerías nuevas, sin gráfico.
 ```
 
 - **Ventana** (`diasAnalisis`): `30 · 90 · 180`, default **90**.
-- **Umbral** (`umbralDiasSobreStock`): `30 · 45 · 60 · 90`, default **45**.
+- **Umbral** (`umbralDiasSobreStock`): `30 · 45 · 60 · 90`, default **30**. El SP cae
+  en 45 si no recibe el parámetro, pero la UI es deliberadamente más estricta y lo
+  manda siempre explícito.
 - **Mostrar** (`topN`): `10 · 20 · 50 · 100`, default **20**.
 - Cada grupo lleva su `.eyebrow` encima para que se lea qué controla.
 - **Sucursal**: dropdown con opción **"Todas las sucursales"**, que es el estado

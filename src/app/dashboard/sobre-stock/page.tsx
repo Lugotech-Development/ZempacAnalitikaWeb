@@ -27,9 +27,11 @@ import type { RptSobreStockProducto } from '@/lib/types';
 // Ventana de historial que alimenta el PromedioDiario (`diasAnalisis`).
 const VENTANAS = [30, 90, 180];
 const VENTANA_DEF = 90;
-// Días de inventario a partir de los cuales el SP marca SOBRE STOCK.
+// Días de inventario a partir de los cuales el SP marca SOBRE STOCK. El SP usa
+// 45 si no se le manda nada; aquí el default es 30 (decisión de producto, más
+// estricta que la del backend) y siempre se envía explícito.
 const UMBRALES = [30, 45, 60, 90];
-const UMBRAL_DEF = 45;
+const UMBRAL_DEF = 30;
 // Cuántos productos devuelve el SP (`topN`).
 const TOPS = [10, 20, 50, 100];
 const TOP_DEF = 20;
