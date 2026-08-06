@@ -128,9 +128,24 @@ export function resumir(filas: SobreStockFila[]): SobreStockResumen {
   };
 }
 
-export type OrdenId = 'dias' | 'capital' | 'excedente' | 'ultimaVenta';
+/**
+ * The SP's own `ordenarPor`. This is NOT a display sort — combined with `topN`
+ * it decides WHICH products come back, so "top 20 por más vendidos" is a
+ * different set than "top 20 por mayor sobre stock", not the same set reordered.
+ */
+export type OrdenServidorId = 1 | 2;
+
+export const ORDENES_SERVIDOR: { id: OrdenServidorId; label: string }[] = [
+  { id: 2, label: 'Más vendidos' },
+  { id: 1, label: 'Mayor sobre stock' }
+];
+
+export const ORDEN_SERVIDOR_DEF: OrdenServidorId = 2;
+
+export type OrdenId = 'api' | 'dias' | 'capital' | 'excedente' | 'ultimaVenta';
 
 export const ORDENES: { id: OrdenId; label: string }[] = [
+  { id: 'api', label: 'Orden del reporte' },
   { id: 'dias', label: 'Días de inventario' },
   { id: 'capital', label: 'Capital inmovilizado' },
   { id: 'excedente', label: 'Excedente' },
@@ -138,12 +153,25 @@ export const ORDENES: { id: OrdenId; label: string }[] = [
 ];
 
 /**
- * Sorts a copy. The first three criteria are descending (biggest problem
- * first); "ultimaVenta" puts the oldest sale first. Null values always sink to
- * the bottom, whatever the criterion.
+ * [ORDENES] with the `'api'` entry relabelled to the server criterion actually
+ * in effect. "Orden del reporte" forced the user to remember that it mirrors the
+ * Priorizar filter; showing "Más vendidos" / "Mayor sobre stock" says it outright.
+ */
+export function ordenesPara(ordenarPor: OrdenServidorId): { id: OrdenId; label: string }[] {
+  const servidor = ORDENES_SERVIDOR.find(o => o.id === ordenarPor);
+  return ORDENES.map(o => (o.id === 'api' && servidor ? { ...o, label: servidor.label } : o));
+}
+
+/**
+ * Sorts a copy. 'api' keeps the order the SP sent (driven by `ordenarPor`) —
+ * without it, any client sort would silently override the server criterion the
+ * user just picked. The value criteria are descending (biggest problem first);
+ * "ultimaVenta" puts the oldest sale first. Null values always sink to the
+ * bottom, whatever the criterion.
  */
 export function ordenar(filas: SobreStockFila[], orden: OrdenId): SobreStockFila[] {
   const copia = [...filas];
+  if (orden === 'api') return copia;
   if (orden === 'ultimaVenta') {
     return copia.sort((a, b) => {
       if (a.diasSinVenta == null) return b.diasSinVenta == null ? 0 : 1;

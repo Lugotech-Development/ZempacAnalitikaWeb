@@ -539,6 +539,7 @@ export interface ExcelExportParams {
   lote?: number;
   diasAnalisis?: number;
   umbralDiasSobreStock?: number;
+  ordenarPor?: number;
 }
 
 const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
@@ -567,6 +568,7 @@ export async function apiExcelExport(reportKey: ExcelReportKey, params?: ExcelEx
   if (params?.lote != null) qs.set('lote', String(params.lote));
   if (params?.diasAnalisis != null) qs.set('diasAnalisis', String(params.diasAnalisis));
   if (params?.umbralDiasSobreStock != null) qs.set('umbralDiasSobreStock', String(params.umbralDiasSobreStock));
+  if (params?.ordenarPor != null) qs.set('ordenarPor', String(params.ordenarPor));
   const query = qs.toString();
   const path = `/api/ExcelExport/${reportKey}${query ? `?${query}` : ''}`;
   const endpoint = `/api/ExcelExport/${reportKey}`;
@@ -822,6 +824,9 @@ export const apiSobreStockProductos = (input: {
   diasAnalisis: number;
   topN: number;
   umbralDiasSobreStock: number;
+  /** SP ordering: 1 = mayor sobre stock primero, 2 = más vendidos primero.
+   *  Together with topN this selects WHICH rows come back, not just their order. */
+  ordenarPor: number;
   sucursalId?: number;
 }) => {
   const forced = forcedParamNumber('sobre-stock-productos', ['sucursalId', 'sucursal', 'idSucursal']);
@@ -833,6 +838,7 @@ export const apiSobreStockProductos = (input: {
       diasAnalisis: String(input.diasAnalisis),
       topN: String(input.topN),
       umbralDiasSobreStock: String(input.umbralDiasSobreStock),
+      ordenarPor: String(input.ordenarPor),
       sucursalId: sucursalId != null ? String(sucursalId) : undefined
     }
   );

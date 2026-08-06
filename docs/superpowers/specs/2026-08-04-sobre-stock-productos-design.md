@@ -154,6 +154,14 @@ Sin hex nuevos, sin librerías nuevas, sin gráfico.
   en 45 si no recibe el parámetro, pero la UI es deliberadamente más estricta y lo
   manda siempre explícito.
 - **Mostrar** (`topN`): `10 · 20 · 50 · 100`, default **20**.
+- **Priorizar** (`ordenarPor`): `2` = Más vendidos (default) · `1` = Mayor sobre stock.
+  **Es un filtro, no un orden de despliegue**: junto con `topN` decide *qué* productos
+  vuelven, así que vive en la tarjeta de filtros y entra en la cache key. Por eso las
+  pills de orden de la lista arrancan en `'api'` ("Orden del reporte"), que devuelve las
+  filas tal cual llegaron — cualquier otro default pisaría en silencio el criterio recién
+  elegido. Efecto secundario útil: con `ordenarPor=2` el top-N incluye productos que
+  rotan bien, así que vuelven a aparecer filas `NORMAL` y el toggle "Solo sobre stock"
+  y los tramos de severidad recuperan sentido (ver §9).
 - Cada grupo lleva su `.eyebrow` encima para que se lea qué controla.
 - **Sucursal**: dropdown con opción **"Todas las sucursales"**, que es el estado
   inicial y **omite `sucursalId` de la query** (el parámetro es opcional, a

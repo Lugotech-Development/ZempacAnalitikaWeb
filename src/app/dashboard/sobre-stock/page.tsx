@@ -12,8 +12,11 @@ import { forcedNumber } from '@/lib/permissions';
 import { useApi } from '@/lib/use-api';
 import {
   DIAS_SIN_VENTA_ALERTA,
-  ORDENES,
+  ORDENES_SERVIDOR,
+  ORDEN_SERVIDOR_DEF,
+  type OrdenServidorId,
   coberturaLegible,
+  ordenesPara,
   derivarFila,
   ordenar,
   resumir,
@@ -61,7 +64,10 @@ export default function SobreStockPage() {
   const [dias, setDias] = useState(VENTANA_DEF);
   const [umbral, setUmbral] = useState(UMBRAL_DEF);
   const [top, setTop] = useState(TOP_DEF);
-  const [orden, setOrden] = useState<OrdenId>('dias');
+  const [ordenarPor, setOrdenarPor] = useState<OrdenServidorId>(ORDEN_SERVIDOR_DEF);
+  // 'api' respeta el orden que mandó el SP (el criterio de "Priorizar"); si el
+  // default fuera un criterio local, elegir "Más vendidos" no cambiaría nada visible.
+  const [orden, setOrden] = useState<OrdenId>('api');
   const [soloSobreStock, setSoloSobreStock] = useState(false);
   const xls = useExcelExport();
 
@@ -72,12 +78,13 @@ export default function SobreStockPage() {
 
   // Cada filtro entra en la key: cambiar cualquiera fuerza LoadingState, nunca
   // LoadingBar (que queda para revalidación en foco/visibilidad de la misma key).
-  const key = `rpt:sobre-stock:${efectivaSucursal ?? 'todas'}:${dias}:${umbral}:${top}`;
+  const key = `rpt:sobre-stock:${efectivaSucursal ?? 'todas'}:${dias}:${umbral}:${top}:${ordenarPor}`;
   const q = useApi<RptSobreStockProducto[]>(key, () =>
     apiSobreStockProductos({
       diasAnalisis: dias,
       topN: top,
       umbralDiasSobreStock: umbral,
+      ordenarPor,
       sucursalId: efectivaSucursal ?? undefined
     })
   );
@@ -98,6 +105,10 @@ export default function SobreStockPage() {
   // contra el mayor de la lista visible.
   const maxCapital = useMemo(() => Math.max(0, ...visibles.map(f => f.capitalInmovilizado)), [visibles]);
 
+  // La pill 'api' se rotula con el criterio del servidor que está en efecto, así
+  // no hay que recordar que "Orden del reporte" espeja el filtro Priorizar.
+  const ordenes = useMemo(() => ordenesPara(ordenarPor), [ordenarPor]);
+
   const sucursalActual = sucursalesQ.data?.find(s => s.id === efectivaSucursal);
 
   const handleExport = () =>
@@ -105,6 +116,7 @@ export default function SobreStockPage() {
       diasAnalisis: dias,
       top,
       umbralDiasSobreStock: umbral,
+      ordenarPor,
       sucursalId: efectivaSucursal ?? undefined
     });
 
@@ -184,10 +196,19 @@ export default function SobreStockPage() {
           )}
         </div>
 
-        <div className="mt-4 flex flex-col sm:flex-row sm:items-start gap-4 sm:gap-6">
+        <div className="mt-4 flex flex-col sm:flex-row sm:flex-wrap sm:items-start gap-4 sm:gap-6">
           <NumPills label="Ventas de los últimos" values={VENTANAS} value={dias} onChange={setDias} format={v => `${v} días`} />
           <NumPills label="Sobre stock: más de" values={UMBRALES} value={umbral} onChange={setUmbral} format={v => `${v} días`} />
           <NumPills label="Mostrar" values={TOPS} value={top} onChange={setTop} format={v => `Top ${v}`} />
+          {/* `ordenarPor` del SP: junto con topN decide QUÉ productos vuelven,
+              por eso vive con los filtros y no con las pills de orden de la lista. */}
+          <NumPills
+            label="Priorizar"
+            values={ORDENES_SERVIDOR.map(o => o.id)}
+            value={ordenarPor}
+            onChange={v => setOrdenarPor(v as OrdenServidorId)}
+            format={v => ORDENES_SERVIDOR.find(o => o.id === v)?.label ?? String(v)}
+          />
         </div>
       </div>
 
@@ -222,6 +243,24 @@ export default function SobreStockPage() {
               expresado en unidades.
             </p>
 
+            {/* Sin sobre stock el resumen queda en $0.00 y se lee como si el reporte
+                fallara; decir que es un buen resultado —y dónde sí buscar— lo evita. */}
+            {resumen.sobreStock === 0 && (
+              <div className="mt-3 card p-4 flex items-start gap-3">
+                <Icon name="check_circle" size={18} className="text-positive-fg shrink-0 mt-0.5" />
+                <p className="text-[12px] text-ink-variant">
+                  Ninguno de estos {fmtInt(resumen.total)} productos supera los {fmtInt(umbral)} días de inventario, así que no hay capital
+                  inmovilizado que reportar.
+                  {ordenarPor === 2 && (
+                    <>
+                      {' '}Para ver dónde sí hay exceso, cambia <span className="font-bold">Priorizar</span> a{' '}
+                      <span className="font-bold">Mayor sobre stock</span>.
+                    </>
+                  )}
+                </p>
+              </div>
+            )}
+
             <BarraSeveridad resumen={resumen} />
 
             <div className="mt-6 flex flex-col sm:flex-row sm:items-center gap-3">
@@ -229,7 +268,8 @@ export default function SobreStockPage() {
                 {fmtInt(resumen.total)} productos · {fmtInt(resumen.sobreStock)} sobre stock
               </p>
               <div className="sm:ml-auto flex items-center gap-2 overflow-x-auto -mx-1 px-1">
-                {ORDENES.map(o => (
+                <span className="shrink-0 text-[11px] font-bold text-outline">Ordenar:</span>
+                {ordenes.map(o => (
                   <button
                     key={o.id}
                     type="button"
@@ -260,7 +300,7 @@ export default function SobreStockPage() {
             ) : (
               <div className="mt-4 space-y-3">
                 {visibles.map((f, i) => (
-                  <FilaCard key={`${f.row.docNum ?? 'r'}-${i}`} f={f} rank={i + 1} maxCapital={maxCapital} dias={dias} />
+                  <FilaCard key={`${f.row.docNum ?? 'r'}-${i}`} f={f} rank={i + 1} maxCapital={maxCapital} dias={dias} umbral={umbral} />
                 ))}
               </div>
             )}
@@ -270,7 +310,19 @@ export default function SobreStockPage() {
   );
 }
 
-function FilaCard({ f, rank, maxCapital, dias }: { f: SobreStockFila; rank: number; maxCapital: number; dias: number }) {
+function FilaCard({
+  f,
+  rank,
+  maxCapital,
+  dias,
+  umbral
+}: {
+  f: SobreStockFila;
+  rank: number;
+  maxCapital: number;
+  dias: number;
+  umbral: number;
+}) {
   const unidad = f.row.unidadVenta?.trim() || 'uds';
   const tono = TONO[f.severidad];
   const cobertura = coberturaLegible(f.row.diasDeInventario);
@@ -281,6 +333,7 @@ function FilaCard({ f, rank, maxCapital, dias }: { f: SobreStockFila; rank: numb
   const estadoRaw = (f.row.estado ?? '').trim();
   const estadoConocido = ESTADOS_CONOCIDOS.has(estadoRaw.toUpperCase());
   const sinCosto = f.row.costo == null || f.row.costo === 0;
+  const conCapital = f.capitalInmovilizado > 0;
 
   return (
     <div className="card-bordered p-5">
@@ -310,16 +363,28 @@ function FilaCard({ f, rank, maxCapital, dias }: { f: SobreStockFila; rank: numb
         {f.diasSinVenta != null && ` · hace ${fmtInt(f.diasSinVenta)} d`}
       </p>
 
-      {/* Participación de esta fila en el capital inmovilizado de la lista */}
-      <div className="mt-3 flex items-center gap-3">
-        <div className="flex-1 h-2 rounded-pill bg-surface-mid overflow-hidden">
-          <div className={`h-full ${tono.barra}`} style={{ width: `${share * 100}%` }} />
+      {/* Participación de esta fila en el capital inmovilizado de la lista. Con
+          "Priorizar: Más vendidos" la mayoría de las filas no tiene exceso, y una
+          barra vacía con $0.00 se lee como un error: se dice con palabras. */}
+      {conCapital ? (
+        <div className="mt-3 flex items-center gap-3">
+          <div className="flex-1 h-2 rounded-pill bg-surface-mid overflow-hidden">
+            <div className={`h-full ${tono.barra}`} style={{ width: `${share * 100}%` }} />
+          </div>
+          <p className="shrink-0 text-right tabular-nums">
+            <span className="text-[13px] font-extrabold text-tertiary">{fmtMoney(f.capitalInmovilizado)}</span>
+            <span className="ml-1.5 text-[10px] font-bold text-outline">{fmtInt(share * 100)}%</span>
+          </p>
         </div>
-        <p className="shrink-0 text-right tabular-nums">
-          <span className="text-[13px] font-extrabold text-tertiary">{sinCosto ? '—' : fmtMoney(f.capitalInmovilizado)}</span>
-          <span className="ml-1.5 text-[10px] font-bold text-outline">{fmtInt(share * 100)}%</span>
+      ) : f.excedente > 0 ? (
+        <p className="mt-3 text-[11px] font-bold text-ink-variant tabular-nums">
+          Excedente de {fmtDecimal(f.excedente)} {unidad} · sin costo registrado, no se puede valorizar
         </p>
-      </div>
+      ) : (
+        <p className="mt-3 text-[11px] font-bold text-positive-fg tabular-nums">
+          Sin exceso · su inventario cubre menos de {fmtInt(umbral)} días
+        </p>
+      )}
 
       <div className="mt-3 flex flex-wrap items-center gap-1.5">
         <span
@@ -328,7 +393,7 @@ function FilaCard({ f, rank, maxCapital, dias }: { f: SobreStockFila; rank: numb
           }`}>
           {estadoRaw || SEVERIDAD_LABEL[f.severidad]}
         </span>
-        <Chip text={`Excedente ${fmtDecimal(f.excedente)} ${unidad}`} />
+        {f.excedente > 0 && <Chip text={`Excedente ${fmtDecimal(f.excedente)} ${unidad}`} />}
         {sinCosto ? (
           <Chip text="Costo no disponible" />
         ) : (
