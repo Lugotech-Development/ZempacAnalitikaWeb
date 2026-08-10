@@ -28,5 +28,14 @@ Read **[AGENTS.md](AGENTS.md)** first — it is the authoritative context file f
 
 ## Commits
 
-- When providing a commit message, never append the `Co-Authored-By: Claude …` trailer
-  or any "Generated with Claude" line — just the subject and body.
+- **Never run `git commit` unless explicitly asked in that message.** Not per task, not
+  at the end, not to checkpoint — finish the work and **leave it in the working tree.**
+  The repo owner commits and pushes; that part is not yours.
+- This **overrides the superpowers skills**, which put a "Commit" step in every plan
+  task (`writing-plans`) and assume frequent commits while executing
+  (`executing-plans`, `test-driven-development`). Do the code and verification steps,
+  skip the commit steps, and don't write commit steps into new plan documents.
+- `git push`, `git merge`, `git reset`, branch create/delete and PRs: ask first, every
+  time. **Never push.**
+- When a commit message *is* requested, never append the `Co-Authored-By: Claude …`
+  trailer or any "Generated with Claude" line — just the subject and body.

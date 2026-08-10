@@ -19,7 +19,8 @@ export const REPORT_ROUTES: ReportRoute[] = [
   { href: '/dashboard/cuadre-caja', reportKeys: ['cuadre-caja'] },
   { href: '/dashboard/ventas-producto-marca', reportKeys: ['ventas-producto-marca'] },
   { href: '/dashboard/ventas-facturador', reportKeys: ['ventas-facturador-sucursal'] },
-  { href: '/dashboard/productos-negativos', reportKeys: ['analitica-productos-negativos'] }
+  { href: '/dashboard/productos-negativos', reportKeys: ['analitica-productos-negativos'] },
+  { href: '/dashboard/sobre-stock', reportKeys: ['sobre-stock-productos'] }
 ];
 
 /**

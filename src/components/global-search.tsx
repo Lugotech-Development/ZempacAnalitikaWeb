@@ -88,6 +88,13 @@ const REPORTS: Hit[] = [
     subtitle: 'Existencias negativas por sucursal',
     href: '/dashboard/productos-negativos',
     icon: 'warning'
+  },
+  {
+    type: 'Reporte',
+    title: 'Stock de Productos',
+    subtitle: 'Exceso de inventario según rotación',
+    href: '/dashboard/sobre-stock',
+    icon: 'inventory_2'
   }
 ];
 

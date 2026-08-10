@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { useSearchParams } from 'next/navigation';
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { Icon } from '@/components/icon';
 import { PageHeader } from '@/components/page-header';
 import { EyebrowLabel, ExcelExportButton } from '@/components/common';
@@ -65,31 +65,53 @@ export default function VentasPage() {
 // ─── List View ──────────────────────────────────────────────────────────────
 
 function ListView({ ventas }: { ventas: RptVenta[] }) {
-  const totals = useMemo(() => {
-    const totalVendido = ventas.reduce((s, v) => s + (v.totalVendido ?? 0), 0);
-    const totalFacturas = ventas.reduce((s, v) => s + (v.cantidadFacturas ?? 0), 0);
-    const ticketPromedio = totalFacturas > 0 ? totalVendido / totalFacturas : 0;
-    return { totalVendido, totalFacturas, ticketPromedio };
-  }, [ventas]);
-
-  const chartData = useMemo(() => {
+  // One entry per calendar day, company-wide. Feeds both the chart and the
+  // per-day figures on the Total Vendido card.
+  const daily = useMemo(() => {
     const byDate = new Map<string, number>();
     for (const v of ventas) {
       if (!v.fecha) continue;
       byDate.set(v.fecha, (byDate.get(v.fecha) ?? 0) + (v.totalVendido ?? 0));
     }
-    return Array.from(byDate.entries())
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([fecha, total]) => ({ fecha: fmtDayMonth(fecha), total }));
+    return Array.from(byDate.entries()).sort(([a], [b]) => a.localeCompare(b));
   }, [ventas]);
 
+  const chartData = useMemo(() => daily.map(([fecha, total]) => ({ fecha: fmtDayMonth(fecha), total })), [daily]);
+
   const summaries = useMemo(() => groupVentasBySucursal(ventas), [ventas]);
+
+  const totals = useMemo(() => {
+    const totalVendido = ventas.reduce((s, v) => s + (v.totalVendido ?? 0), 0);
+    const totalFacturas = ventas.reduce((s, v) => s + (v.cantidadFacturas ?? 0), 0);
+    const ticketPromedio = totalFacturas > 0 ? totalVendido / totalFacturas : 0;
+    const totalDescuento = ventas.reduce((s, v) => s + (v.montoDescuento ?? 0), 0);
+    const promedioDiario = daily.length > 0 ? totalVendido / daily.length : 0;
+    const mejorDia = daily.reduce<[string, number] | null>((best, cur) => (best == null || cur[1] > best[1] ? cur : best), null);
+    const rango = daily.length > 0 ? `${fmtDayMonth(daily[0][0])} – ${fmtDate(daily[daily.length - 1][0])} · ${daily.length} días` : null;
+    return { totalVendido, totalFacturas, ticketPromedio, totalDescuento, promedioDiario, mejorDia, rango };
+  }, [ventas, daily]);
+
+  // Per-sucursal snapshots, so the company total is the sum of the branch figures
+  // the cards below show — the two can never disagree.
+  const inventario = useMemo(() => {
+    const monto = summaries.reduce((s, x) => s + (x.montoInventario ?? 0), 0);
+    const costo = summaries.reduce((s, x) => s + (x.montoCostoInventario ?? 0), 0);
+    const has = summaries.some(x => x.montoInventario != null || x.montoCostoInventario != null);
+    return { monto, costo, has };
+  }, [summaries]);
 
   const xls = useExcelExport();
 
   return (
     <>
-      <SummaryTile label="Total Vendido" value={fmtMoney(totals.totalVendido)} icon="show_chart" color="positive" />
+      <div className={inventario.has ? 'grid grid-cols-1 lg:grid-cols-2 gap-3' : undefined}>
+        <SummaryTile label="Total Vendido" value={fmtMoney(totals.totalVendido)} icon="show_chart" color="positive" caption={totals.rango}>
+          <Row label="Promedio diario" value={fmtMoney(totals.promedioDiario)} />
+          {totals.mejorDia && <Row label={`Mejor día (${fmtDayMonth(totals.mejorDia[0])})`} value={fmtMoney(totals.mejorDia[1])} />}
+          <Row label="Descuentos" value={fmtMoney(totals.totalDescuento)} />
+        </SummaryTile>
+        {inventario.has && <InventarioTile monto={inventario.monto} costo={inventario.costo} caption="Monto en todas las sucursales" />}
+      </div>
       <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
         <SummaryTile label="Facturas" value={fmtInt(totals.totalFacturas)} icon="receipt_long" color="primary-container" />
         <SummaryTile label="Ticket Promedio" value={fmtMoney(totals.ticketPromedio)} icon="sell" color="secondary" />
@@ -121,6 +143,27 @@ function ListView({ ventas }: { ventas: RptVenta[] }) {
         ))}
       </div>
     </>
+  );
+}
+
+/** Inventory snapshot — company-wide in the list, per-branch in the detail view.
+ *  Shares SummaryTile so it pairs with "Total Vendido" on the same row. */
+function InventarioTile({ monto, costo, caption }: { monto: number; costo: number; caption: string }) {
+  const margen = monto - costo;
+  const porcMargen = monto > 0 ? (margen / monto) * 100 : 0;
+  return (
+    <SummaryTile label="Inventario Actual" value={fmtMoney(monto)} icon="inventory_2" color="primary" caption={caption}>
+      <Row label="Costo inventario" value={fmtMoney(costo)} />
+      {monto > 0 && (
+        <>
+          <Row label="Margen potencial" value={fmtPercent(porcMargen)} />
+          <div className="h-1.5 rounded-pill bg-surface-mid overflow-hidden">
+            <div className="h-full bg-cta-gradient" style={{ width: `${Math.max(0, Math.min(porcMargen, 100))}%` }} />
+          </div>
+          <p className="text-[11px] text-ink-variant tabular-nums break-words">{fmtMoney(margen)} — monto menos costo</p>
+        </>
+      )}
+    </SummaryTile>
   );
 }
 
@@ -173,6 +216,8 @@ function SucursalCard({ s }: { s: VentaSucursalSummary }) {
         <Row label="Margen Estimado" value={fmtPercent(s.porcMargenEstimado)} />
         <Row label="Porcentaje Relativo" value={fmtPercent(s.porcentajeRelativo)} />
         <Row label="Facturas" value={fmtInt(s.cantidadFacturas)} />
+        {s.montoInventario != null && <Row label="Monto Inventario" value={fmtMoney(s.montoInventario)} />}
+        {s.montoCostoInventario != null && <Row label="Costo Inventario" value={fmtMoney(s.montoCostoInventario)} />}
       </div>
     </Link>
   );
@@ -207,6 +252,13 @@ function DetailContent({ s }: { s: VentaSucursalSummary }) {
   const sortedDaily = useMemo(() => [...s.dailyItems].sort((a, b) => (b.fecha ?? '').localeCompare(a.fecha ?? '')), [s.dailyItems]);
 
   const rangeStr = `${fmtDayMonth(fechaMin)} – ${fmtDate(fechaMax)}`;
+  const hasInventario = s.montoInventario != null || s.montoCostoInventario != null;
+
+  const perDia = useMemo(() => {
+    const promedio = s.dailyItems.length > 0 ? s.totalVendido / s.dailyItems.length : 0;
+    const mejor = s.dailyItems.reduce<RptVenta | null>((best, cur) => (best == null || (cur.totalVendido ?? 0) > (best.totalVendido ?? 0) ? cur : best), null);
+    return { promedio, mejor };
+  }, [s.dailyItems, s.totalVendido]);
 
   const xls = useExcelExport();
   const handleExport = () => {
@@ -219,8 +271,16 @@ function DetailContent({ s }: { s: VentaSucursalSummary }) {
       <p className="mt-1 text-sm text-ink-variant">Sucursal {s.sucursal}</p>
       <span className="mt-2 inline-block pill bg-primary/[0.08] text-primary text-[12px]">{rangeStr}</span>
 
-      <div className="mt-6">
-        <SummaryTile label="Total Vendido" value={fmtMoney(s.totalVendido)} icon="trending_up" color="positive" />
+      <div className={`mt-6${hasInventario ? ' grid grid-cols-1 lg:grid-cols-2 gap-3' : ''}`}>
+        <SummaryTile label="Total Vendido" value={fmtMoney(s.totalVendido)} icon="trending_up" color="positive" caption={hasInventario ? `${s.dailyItems.length} día${s.dailyItems.length === 1 ? '' : 's'} con ventas` : null}>
+          {hasInventario ? (
+            <>
+              <Row label="Promedio diario" value={fmtMoney(perDia.promedio)} />
+              {perDia.mejor && <Row label={`Mejor día (${fmtDayMonth(perDia.mejor.fecha)})`} value={fmtMoney(perDia.mejor.totalVendido ?? 0)} />}
+            </>
+          ) : null}
+        </SummaryTile>
+        {hasInventario && <InventarioTile monto={s.montoInventario ?? 0} costo={s.montoCostoInventario ?? 0} caption={`Monto en ${s.almacenNombre || `sucursal ${s.sucursal}`}`} />}
       </div>
       <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
         <SummaryTile label="Facturas" value={fmtInt(s.cantidadFacturas)} icon="receipt_long" color="primary-container" />
@@ -299,7 +359,23 @@ function Row({ label, value }: { label: string; value: string }) {
 }
 
 type TileColor = 'primary' | 'primary-container' | 'secondary' | 'tertiary' | 'outline' | 'positive';
-function SummaryTile({ label, value, icon, color }: { label: string; value: string; icon: IconName; color: TileColor }) {
+/** `caption` and `children` are optional: without them this is the plain metric
+ *  tile, with them it grows a supporting block of `Row`s under a divider. */
+function SummaryTile({
+  label,
+  value,
+  icon,
+  color,
+  caption,
+  children
+}: {
+  label: string;
+  value: string;
+  icon: IconName;
+  color: TileColor;
+  caption?: string | null;
+  children?: ReactNode;
+}) {
   const tone =
     color === 'tertiary'
       ? 'bg-tertiary/10 text-tertiary'
@@ -318,7 +394,9 @@ function SummaryTile({ label, value, icon, color }: { label: string; value: stri
         <Icon name={icon} size={18} />
       </div>
       <EyebrowLabel className="mt-3">{label}</EyebrowLabel>
-      <p className="mt-1 text-2xl font-extrabold tracking-tight">{value}</p>
+      <p className="mt-1 text-2xl font-extrabold tracking-tight tabular-nums break-words">{value}</p>
+      {caption && <p className="mt-0.5 text-[11px] text-ink-variant tabular-nums">{caption}</p>}
+      {children && <div className="mt-4 border-t border-surface-mid pt-4 space-y-2.5">{children}</div>}
     </div>
   );
 }

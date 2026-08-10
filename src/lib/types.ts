@@ -63,6 +63,10 @@ export type RptVenta = {
   totalCosto: number | null;
   porcMargenEstimado: number | null;
   porcentajeRelativo: number | null;
+  // Company-wide inventory totals. The SP fills these on a single sucursal row
+  // (arbitrary) and leaves them null on the rest — they are NOT per-sucursal.
+  montoInventario: number | null;
+  montoCostoInventario: number | null;
 };
 
 export type RptDevolucion = {
@@ -319,7 +323,10 @@ export const parseVenta = (j: J): RptVenta => ({
   ticketPromedio: num(j.TicketPromedio),
   totalCosto: num(j.TotalCosto),
   porcMargenEstimado: num(j.PorcMargenEstimado),
-  porcentajeRelativo: num(j.PorcentajeRelativo)
+  porcentajeRelativo: num(j.PorcentajeRelativo),
+  montoInventario: num(j.MontoInventario),
+  // `/principal` names the same figure CostoInventario — accept both spellings.
+  montoCostoInventario: num(j.MontoCostoInventario ?? j.CostoInventario)
 });
 
 export const parseDevolucion = (j: J): RptDevolucion => ({
@@ -514,6 +521,8 @@ export type VentaSucursalSummary = {
   totalCosto: number;
   porcMargenEstimado: number;
   porcentajeRelativo: number;
+  montoInventario: number | null;
+  montoCostoInventario: number | null;
   dailyItems: RptVenta[];
 };
 
@@ -533,6 +542,10 @@ export function groupVentasBySucursal(items: RptVenta[]): VentaSucursalSummary[]
     const totalVendido = sum('totalVendido');
     const margens = rows.map(r => r.porcMargenEstimado).filter((x): x is number => x != null);
     const porcMargenEstimado = margens.length > 0 ? margens.reduce((a, b) => a + b, 0) / margens.length : 0;
+    // Inventory is a snapshot, not a daily series: the SP stamps it on one date
+    // row per sucursal and leaves the rest null. Read that row instead of summing,
+    // so the figure stays right if the SP ever stamps every row.
+    const inv = rows.find(r => r.montoInventario != null || r.montoCostoInventario != null);
     out.push({
       sucursal,
       almacenNombre: rows[0].almacenNombre ?? '',
@@ -546,6 +559,8 @@ export function groupVentasBySucursal(items: RptVenta[]): VentaSucursalSummary[]
       totalCosto: sum('totalCosto'),
       porcMargenEstimado,
       porcentajeRelativo: sum('porcentajeRelativo'),
+      montoInventario: inv?.montoInventario ?? null,
+      montoCostoInventario: inv?.montoCostoInventario ?? null,
       dailyItems: rows
     });
   }
@@ -661,3 +676,32 @@ export function parseMarca(j: J): Marca {
     nombre: str(j['NombreMarca']) ?? str(j['nombreMarca']) ?? str(j['Marca']) ?? str(j['marca']) ?? str(j['Nombre']) ?? str(j['nombre']),
   };
 }
+
+// ─── Sobre Stock de Productos ────────────────────────────────────────────────
+
+export type RptSobreStockProducto = {
+  docNum: number | null;
+  producto: string | null;
+  unidadVenta: string | null;
+  costo: number | null;
+  ultimaVenta: string | null;
+  vendidoEnPeriodo: number | null;
+  promedioDiario: number | null;
+  existenciaActual: number | null;
+  diasDeInventario: number | null;
+  /** 'SOBRE STOCK' | 'NORMAL' today; render unknown values verbatim. */
+  estado: string | null;
+};
+
+export const parseSobreStock = (j: J): RptSobreStockProducto => ({
+  docNum: num(j.DocNum ?? j.docNum),
+  producto: str(j.Producto ?? j.producto),
+  unidadVenta: str(j.UnidadVenta ?? j.unidadVenta),
+  costo: num(j.Costo ?? j.costo),
+  ultimaVenta: str(j.UltimaVenta ?? j.ultimaVenta),
+  vendidoEnPeriodo: num(j.VendidoEnPeriodo ?? j.vendidoEnPeriodo),
+  promedioDiario: num(j.PromedioDiario ?? j.promedioDiario),
+  existenciaActual: num(j.ExistenciaActual ?? j.existenciaActual),
+  diasDeInventario: num(j.DiasDeInventario ?? j.diasDeInventario),
+  estado: str(j.Estado ?? j.estado)
+});
