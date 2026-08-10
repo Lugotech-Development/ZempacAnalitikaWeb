@@ -228,6 +228,36 @@ function asNumberOrNull(v: unknown): number | null {
   return null;
 }
 
+// ─── Session expiry (local check) ───────────────────────────────────────────
+// Login and refresh both hand us `expiresAt`. Comparing it against the clock
+// turns expiry detection into arithmetic instead of a doomed round-trip that has
+// to come back 401 before we learn anything the session already knew.
+//
+// Caveat that drives the implementation: this API sends naive datetimes (a
+// report `Fecha` is `2026-08-06T00:00:00`), and `Date.parse` reads a string with
+// no timezone as LOCAL. So if `expiresAt` is really UTC we would compute an
+// expiry hours away from the truth — and in the wrong direction that invents an
+// expiry and signs out a perfectly good session. Rather than guess the backend's
+// convention we take the LATEST plausible reading: only once even that has
+// passed is the token certainly dead. Guessing wrong can then only make us
+// slower (today's 401 path still catches it), never wrong.
+const EXPIRY_GRACE_MS = 30_000;
+
+/** Latest instant `raw` could mean, across timezone interpretations. */
+function latestPlausibleExpiry(raw: string): number | null {
+  const s = raw.trim();
+  const hasZone = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(s);
+  const candidates = (hasZone ? [Date.parse(s)] : [Date.parse(s), Date.parse(`${s}Z`)]).filter(n => !Number.isNaN(n));
+  return candidates.length > 0 ? Math.max(...candidates) : null;
+}
+
+/** True only when the stored token is certainly past its expiry. */
+function isSessionExpired(s: StoredSession | null): boolean {
+  if (!s?.expiresAt) return false; // expiry unknown → fall back to the 401 path
+  const at = latestPlausibleExpiry(s.expiresAt);
+  return at != null && at + EXPIRY_GRACE_MS <= Date.now();
+}
+
 // ─── Token refresh ──────────────────────────────────────────────────────────
 
 let refreshPromise: Promise<string | null> | null = null;
@@ -362,28 +392,52 @@ async function revokeSessionConfirmed(
   // there is no live server session this token could be stranding.
   if (!token || !refreshToken) return { ok: true };
 
-  let res: Response;
-  try {
+  const send = async (bearer: string, rt: string): Promise<Response | null> => {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 15000);
     try {
-      res = await fetch(`${UPSTREAM}/api/auth/revoke`, {
+      return await fetch(`${UPSTREAM}/api/auth/revoke`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
+          Authorization: `Bearer ${bearer}`
         },
-        body: JSON.stringify({ refreshToken }),
+        body: JSON.stringify({ refreshToken: rt }),
         signal: controller.signal
       });
+    } catch {
+      return null; // offline / timeout — indistinguishable, both mean "couldn't ask"
     } finally {
       clearTimeout(timer);
     }
-  } catch {
-    return {
-      ok: false,
-      message: 'No pudimos conectar con el servidor. Revisa tu conexión a internet e inténtalo de nuevo.'
-    };
+  };
+
+  const noConnection: LogoutResult = {
+    ok: false,
+    message: 'No pudimos conectar con el servidor. Revisa tu conexión a internet e inténtalo de nuevo.'
+  };
+
+  let res = await send(token, refreshToken);
+  if (res === null) return noConnection;
+
+  // A 401 means this bearer cannot authenticate anything — the revoke included.
+  // Renew it and ask once more, so a merely-expired access token still releases
+  // the backend session properly. Note the refresh rotates the refresh token, so
+  // the retry has to carry the new one or the backend rejects it.
+  if (res.status === 401) {
+    const renewed = await tryRefresh();
+    if (renewed) {
+      const fresh = getSession();
+      const retry = await send(renewed, fresh?.refreshToken ?? refreshToken);
+      if (retry === null) return noConnection;
+      res = retry;
+    }
+    // Still unauthorised: the access token is dead AND cannot be renewed, so
+    // there is no live backend session left for us to strand — the single thing
+    // the confirm-before-clear guard exists to prevent. Holding the local
+    // session hostage here would only trap the user in something they can
+    // neither use nor leave, which is exactly the reported bug.
+    if (res.status === 401) return { ok: true };
   }
 
   if (res.ok) return { ok: true }; // 2xx
@@ -415,11 +469,29 @@ function tearDownExpiredSession(path: string): void {
 
 // ─── Core fetch with auth + retry on 401 ───────────────────────────────────
 
+// Data requests had no timeout at all, while refresh (5s) and revoke (15s) did —
+// so a half-open connection parked here until the browser gave up (~300s in
+// Chrome), which is what made an expired session feel undetectable until a
+// manual reload. Generous enough for the heavy report SPs, finite either way.
+const REQUEST_TIMEOUT_MS = 30_000;
+
 async function authFetch(path: string, init?: RequestInit): Promise<Response> {
   if (accessBlocked) raiseAccessBlock(accessBlocked); // already blocked → don't touch the network
 
-  const session = getSession();
+  let session = getSession();
   if (!session?.token) throw new UnauthorizedError();
+
+  // Expiry is knowable locally: once it has certainly passed, renew up front
+  // rather than spending a request whose only possible answer is 401.
+  if (isSessionExpired(session)) {
+    const renewed = await tryRefresh();
+    if (!renewed) {
+      tearDownExpiredSession(path);
+      throw new UnauthorizedError();
+    }
+    session = getSession();
+    if (!session?.token) throw new UnauthorizedError();
+  }
 
   const url = `${UPSTREAM}${path}`;
   const headers: Record<string, string> = {
@@ -429,7 +501,7 @@ async function authFetch(path: string, init?: RequestInit): Promise<Response> {
 
   let res: Response;
   try {
-    res = await fetch(url, { ...init, headers });
+    res = await fetch(url, { ...init, headers, signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
   } catch {
     throw new NetworkError();
   }
@@ -442,7 +514,7 @@ async function authFetch(path: string, init?: RequestInit): Promise<Response> {
     }
     headers.Authorization = `Bearer ${newToken}`;
     try {
-      res = await fetch(url, { ...init, headers });
+      res = await fetch(url, { ...init, headers, signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
     } catch {
       throw new NetworkError();
     }
