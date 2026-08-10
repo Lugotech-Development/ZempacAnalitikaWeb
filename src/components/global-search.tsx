@@ -91,7 +91,7 @@ const REPORTS: Hit[] = [
   },
   {
     type: 'Reporte',
-    title: 'Sobre Stock',
+    title: 'Stock de Productos',
     subtitle: 'Exceso de inventario según rotación',
     href: '/dashboard/sobre-stock',
     icon: 'inventory_2'

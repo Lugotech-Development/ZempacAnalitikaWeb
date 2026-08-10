@@ -124,7 +124,7 @@ export default function SobreStockPage() {
     <>
       <PageHeader
         eyebrow="Reporte"
-        title="Sobre Stock"
+        title="Stock de Productos"
         subtitle="Productos con exceso de inventario según su rotación"
         icon="inventory_2"
         isRefreshing={q.isValidating && q.status === 'success'}

@@ -136,11 +136,12 @@ export function resumir(filas: SobreStockFila[]): SobreStockResumen {
 export type OrdenServidorId = 1 | 2;
 
 export const ORDENES_SERVIDOR: { id: OrdenServidorId; label: string }[] = [
-  { id: 2, label: 'Más vendidos' },
-  { id: 1, label: 'Mayor sobre stock' }
+  { id: 1, label: 'Mayor sobre stock' },
+  { id: 2, label: 'Más vendidos' }
 ];
 
-export const ORDEN_SERVIDOR_DEF: OrdenServidorId = 2;
+/** El reporte es de sobre stock: el top arranca por el exceso, no por la venta. */
+export const ORDEN_SERVIDOR_DEF: OrdenServidorId = 1;
 
 export type OrdenId = 'api' | 'dias' | 'capital' | 'excedente' | 'ultimaVenta';
 
