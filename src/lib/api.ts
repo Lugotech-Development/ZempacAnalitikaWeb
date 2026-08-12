@@ -475,6 +475,18 @@ function tearDownExpiredSession(path: string): void {
 // manual reload. Generous enough for the heavy report SPs, finite either way.
 const REQUEST_TIMEOUT_MS = 30_000;
 
+/** An aborted fetch is a timeout, not an unreachable server. Saying "no se pudo
+ *  conectar" for a request that connected fine and then ran long sends people to
+ *  check their wifi for nothing. Mirrors `ApiException.mensajeDe` in Flutter. */
+function asNetworkError(e: unknown): NetworkError {
+  const timedOut = e instanceof DOMException && (e.name === 'TimeoutError' || e.name === 'AbortError');
+  return new NetworkError(
+    timedOut
+      ? 'El servidor tardó demasiado en responder. Revisa tu conexión e inténtalo de nuevo.'
+      : 'No pudimos conectar con el servidor. Revisa tu conexión a internet e inténtalo de nuevo.'
+  );
+}
+
 async function authFetch(path: string, init?: RequestInit): Promise<Response> {
   if (accessBlocked) raiseAccessBlock(accessBlocked); // already blocked → don't touch the network
 
@@ -502,8 +514,8 @@ async function authFetch(path: string, init?: RequestInit): Promise<Response> {
   let res: Response;
   try {
     res = await fetch(url, { ...init, headers, signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
-  } catch {
-    throw new NetworkError();
+  } catch (e) {
+    throw asNetworkError(e);
   }
 
   if (res.status === 401) {
