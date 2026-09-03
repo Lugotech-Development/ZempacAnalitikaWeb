@@ -27,6 +27,14 @@ const listeners = new Set<Listener>();
 
 const str = (v: unknown): string | null => (typeof v === 'string' && v.trim() ? v.trim() : null);
 
+// Same UTC pinning as parseSesionActiva: the API sends these zoneless even though
+// they are UTC, and `new Date` would read them as local — see src/lib/types.ts.
+const utc = (v: unknown): string | null => {
+  const s = str(v);
+  if (!s) return null;
+  return /(?:Z|[+-]\d{2}:?\d{2})$/i.test(s) ? s : `${s}Z`;
+};
+
 /**
  * Reads a session-end reason out of a failed `/api/auth/refresh` body. Returns
  * null for today's bodies (`{ message }` only), which is what keeps the generic
@@ -41,7 +49,7 @@ export function parseSessionEndReason(body: unknown): SessionEndReason | null {
     code,
     deviceName: str(b.deviceName ?? b.DeviceName),
     ipAddress: str(b.ipAddress ?? b.IpAddress),
-    at: str(b.at ?? b.At ?? b.revokedAt ?? b.createdAt)
+    at: utc(b.at ?? b.At ?? b.revokedAt ?? b.createdAt)
   };
 }
 

@@ -14,22 +14,27 @@ import { fmtDateTime } from '@/lib/format';
  *
  * Two shapes, decided by whether the backend named a cause:
  *
- * - **Plain expiry** (no reason, or a code we don't know): the token simply aged
- *   out. Nothing to explain, so it auto-redirects after 5 seconds.
+ * - **Plain expiry** (no reason, or a code we don't know): the token aged out.
  * - **Revoked by a login elsewhere**: an involuntary sign-out the user did not
- *   perform here, so it says which device caused it and does NOT auto-redirect —
- *   this is the message that tells someone their account was accessed from a
- *   device they don't recognize, and it can't be allowed to flash past unread.
+ *   perform here, so it names the device that caused it and adds the security
+ *   prompt — this is how someone learns their account was accessed from a device
+ *   they don't recognize.
+ *
+ * **Neither shape closes itself.** Both mean "you have been signed out", and a
+ * message that vanishes on a timer is a message the user may never have read —
+ * they could be away from the keyboard for the whole countdown. Leaving requires
+ * pressing "Iniciar sesión".
  *
  * Adding a new code is one PRESENTATION entry; anything unrecognized keeps the
- * plain-expiry behaviour, so an unfamiliar code can never produce a wrong claim.
+ * plain-expiry copy, so an unfamiliar code can never produce a wrong claim.
  */
 
 type Presentation = {
   title: string;
   body: string;
   icon: IconName;
-  /** Involuntary sign-outs stay on screen until dismissed. */
+  /** An eviction the user did not perform here — earns the device details and
+   *  the "¿No fuiste tú?" prompt. Both shapes stay put either way. */
   urgent: boolean;
 };
 
@@ -52,29 +57,17 @@ const PLAIN: Presentation = {
 export function SessionExpiredModal() {
   const [visible, setVisible] = useState(false);
   const [reason, setReason] = useState<SessionEndReason | null>(null);
-  const [countdown, setCountdown] = useState(5);
 
   useEffect(() => {
     return onSessionExpired(r => {
       setReason(r);
       setVisible(true);
-      setCountdown(5);
     });
   }, []);
 
   const shown = (reason && PRESENTATION[reason.code]) ?? PLAIN;
 
-  // Countdown → auto-redirect. Skipped for an involuntary sign-out: the user has
-  // something to read and possibly act on.
-  useEffect(() => {
-    if (!visible || shown.urgent) return;
-    if (countdown <= 0) {
-      window.location.replace('/login');
-      return;
-    }
-    const t = setTimeout(() => setCountdown(c => c - 1), 1000);
-    return () => clearTimeout(t);
-  }, [visible, countdown, shown.urgent]);
+  // Deliberately no countdown: leaving is the user's action, not a timer's.
 
   if (!visible) return null;
 
@@ -123,8 +116,6 @@ export function SessionExpiredModal() {
           <Icon name="arrow_forward" size={16} />
           Iniciar sesión
         </button>
-
-        {!shown.urgent && <p className="mt-4 text-xs text-outline">Redirigiendo en {countdown}s…</p>}
       </div>
     </div>
   );

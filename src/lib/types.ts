@@ -730,6 +730,23 @@ export const parseSobreStock = (j: J): RptSobreStockProducto => ({
  * the backend sends nothing usable, so the dialog can fall back to generic copy
  * instead of rendering a card full of em dashes.
  */
+/**
+ * The 409 payload documents `createdAt` / `expiresAt` as UTC (§3.3) but sends
+ * them with no zone suffix (`2026-09-03T18:38:44.493557`), and `new Date` reads
+ * a zoneless string as LOCAL — which rendered a session started 15 minutes ago
+ * as four hours in the FUTURE, defeating the one thing the dialog is for.
+ *
+ * Pinned here, in the parser that knows what these particular fields mean, not
+ * in `fmtDate`/`fmtDateTime`: a report's `Fecha` is a naive calendar day
+ * (`2026-08-06T00:00:00`) and forcing that to UTC would show the previous day
+ * for anyone west of Greenwich.
+ */
+const utc = (v: unknown): string | null => {
+  const s = str(v);
+  if (!s) return null;
+  return /(?:Z|[+-]\d{2}:?\d{2})$/i.test(s) ? s : `${s}Z`;
+};
+
 export const parseSesionActiva = (raw: unknown): SesionActiva | null => {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
   const j = raw as J;
@@ -741,7 +758,7 @@ export const parseSesionActiva = (raw: unknown): SesionActiva | null => {
     ipAddress: str(j.ipAddress ?? j.IpAddress),
     userAgent: str(j.userAgent ?? j.UserAgent),
     clientType: num(j.clientType ?? j.ClientType),
-    createdAt: str(j.createdAt ?? j.CreatedAt),
-    expiresAt: str(j.expiresAt ?? j.ExpiresAt)
+    createdAt: utc(j.createdAt ?? j.CreatedAt),
+    expiresAt: utc(j.expiresAt ?? j.ExpiresAt)
   };
 };
