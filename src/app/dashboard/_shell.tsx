@@ -1,6 +1,6 @@
 'use client';
 
-const APP_VERSION = '2.0.1';
+const APP_VERSION = '3.0.0';
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
