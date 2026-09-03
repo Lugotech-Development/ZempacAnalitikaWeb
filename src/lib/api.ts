@@ -473,7 +473,7 @@ function tearDownExpiredSession(path: string): void {
 // so a half-open connection parked here until the browser gave up (~300s in
 // Chrome), which is what made an expired session feel undetectable until a
 // manual reload. Generous enough for the heavy report SPs, finite either way.
-const REQUEST_TIMEOUT_MS = 30_000;
+const REQUEST_TIMEOUT_MS = 180_000;
 
 /** An aborted fetch is a timeout, not an unreachable server. Saying "no se pudo
  *  conectar" for a request that connected fine and then ran long sends people to
