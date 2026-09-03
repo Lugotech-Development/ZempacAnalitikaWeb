@@ -1,12 +1,13 @@
 // Client-side API layer. Calls the upstream Reportes Zempac API directly.
 // Auth tokens are stored in localStorage. On 401 we attempt a silent refresh;
 // if that fails we emit a session-expired event and throw UnauthorizedError.
-import { emitSessionExpired } from './session-events';
+import { emitSessionExpired, parseSessionEndReason, type SessionEndReason } from './session-events';
 import { detectAccessBlock, emitAccessBlocked, type AccessBlock } from './access-block-events';
 import { analytics } from './analytics/analytics';
 import { AnalyticsEvents } from './analytics/events';
 
-import type { Marca, ProductosNegativosPage, RptCuadreCajaLinea, RptCuentasPorCobrar, RptCxcDetalleFactura, RptDevolucion, RptLote, RptLoteCondensadoLinea, RptPantallaPrincipal, RptProductoMasVendido, RptProductoPorLote, RptSobreStockProducto, RptVenta, RptVentaFacturador, RptVentaProductoMarca, SessionInfo, Sucursal } from './types';
+import { getDeviceName } from './device';
+import type { Marca, ProductosNegativosPage, RptCuadreCajaLinea, RptCuentasPorCobrar, RptCxcDetalleFactura, RptDevolucion, RptLote, RptLoteCondensadoLinea, RptPantallaPrincipal, RptProductoMasVendido, RptProductoPorLote, RptSobreStockProducto, RptVenta, RptVentaFacturador, RptVentaProductoMarca, SesionActiva, SessionInfo, Sucursal } from './types';
 import {
   parseCuadreLinea,
   parseCxcAntiguedad,
@@ -20,6 +21,7 @@ import {
   parseProductosNegativosPage,
   parsePantallaPrincipal,
   parseProducto,
+  parseSesionActiva,
   parseSucursal,
   parseVenta,
   parseVentaFacturador,
@@ -172,6 +174,26 @@ export class AccessBlockedError extends Error {
   }
 }
 
+/**
+ * Thrown by [apiLogin] on a 409: the credentials were VALID, but the single
+ * active session for this platform is held by another device. This is not a
+ * failed login — it is a question. The caller must ask the user whether to
+ * evict `sesionActiva` and, only on an explicit yes, retry the identical login
+ * with `cerrarSesionAnterior: true`.
+ *
+ * `sesionActiva` is null when the backend sent nothing usable; the dialog then
+ * falls back to generic copy rather than showing a card of em dashes.
+ */
+export class SessionConflictError extends Error {
+  constructor(
+    message: string,
+    public sesionActiva: SesionActiva | null
+  ) {
+    super(message);
+    this.name = 'SessionConflictError';
+  }
+}
+
 // ─── Analytics helpers ──────────────────────────────────────────────────────
 
 function normalizeEndpoint(path: string): string {
@@ -262,6 +284,12 @@ function isSessionExpired(s: StoredSession | null): boolean {
 
 let refreshPromise: Promise<string | null> | null = null;
 
+// Set when a refresh is REJECTED and the backend named a cause; read once by
+// tearDownExpiredSession, which always runs right after a failed refresh. Any
+// successful refresh clears it, so a later teardown can never inherit a stale
+// reason from an earlier failure.
+let refreshFailureReason: SessionEndReason | null = null;
+
 async function tryRefresh(): Promise<string | null> {
   const session = getSession();
   if (!session?.refreshToken) return null;
@@ -276,9 +304,23 @@ async function tryRefresh(): Promise<string | null> {
         signal: AbortSignal.timeout(5000)
       });
       if (!res.ok) {
-        analytics.track(AnalyticsEvents.tokenRefresh, { success: false, ms: Math.round(performance.now() - started) });
+        // The body may name WHY (e.g. revoked by a login elsewhere) rather than
+        // just that it failed. Tolerant of a non-JSON body: no code, no claim.
+        let failure: unknown = null;
+        try {
+          failure = await res.json();
+        } catch {
+          failure = null;
+        }
+        refreshFailureReason = parseSessionEndReason(failure);
+        analytics.track(AnalyticsEvents.tokenRefresh, {
+          success: false,
+          ms: Math.round(performance.now() - started),
+          end_reason: refreshFailureReason?.code ?? null
+        });
         return null;
       }
+      refreshFailureReason = null;
       const body = (await res.json()) as Record<string, unknown>;
       const newToken = body.token ? String(body.token) : null;
       if (newToken) {
@@ -463,8 +505,14 @@ function tearDownExpiredSession(path: string): void {
   const dead = getSession();
   revokeSession(dead?.token, dead?.refreshToken);
   clearSession();
-  analytics.track(AnalyticsEvents.sessionExpired, { screen: analytics.currentScreen, endpoint: normalizeEndpoint(path) });
-  emitSessionExpired();
+  const reason = refreshFailureReason;
+  refreshFailureReason = null;
+  analytics.track(AnalyticsEvents.sessionExpired, {
+    screen: analytics.currentScreen,
+    endpoint: normalizeEndpoint(path),
+    end_reason: reason?.code ?? null
+  });
+  emitSessionExpired(reason);
 }
 
 // ─── Core fetch with auth + retry on 401 ───────────────────────────────────
@@ -702,8 +750,23 @@ export async function apiExcelExport(reportKey: ExcelReportKey, params?: ExcelEx
 
 // ─── Public API ─────────────────────────────────────────────────────────────
 
-export async function apiLogin(input: { empresa: string; usuario: string; password: string }): Promise<SessionInfo> {
-  analytics.track(AnalyticsEvents.loginAttempt, { empresa: input.empresa, remember_session: true });
+/**
+ * Logs in against the upstream API.
+ *
+ * The backend allows a single active session per platform. When the credentials
+ * are valid but another device holds that slot it answers **409**, not an error:
+ * it hands back the conflicting session so the user can decide. That surfaces as
+ * [SessionConflictError]; retry the identical call with
+ * `{ cerrarSesionAnterior: true }` once — and only once — the user has said yes.
+ * Never pass that flag on a first attempt: it would evict the other device
+ * silently, with nobody asked.
+ */
+export async function apiLogin(
+  input: { empresa: string; usuario: string; password: string },
+  opts: { cerrarSesionAnterior?: boolean } = {}
+): Promise<SessionInfo> {
+  const cerrarSesionAnterior = opts.cerrarSesionAnterior === true;
+  analytics.track(AnalyticsEvents.loginAttempt, { empresa: input.empresa, remember_session: true, cerrar_sesion_anterior: cerrarSesionAnterior });
   const started = performance.now();
   let res: Response;
   try {
@@ -714,7 +777,10 @@ export async function apiLogin(input: { empresa: string; usuario: string; passwo
         empresaCodigo: input.empresa,
         username: input.usuario,
         password: input.password,
-        clientType: 0
+        clientType: 0,
+        // Echoed back to whoever hits the 409 next — see src/lib/device.ts.
+        deviceName: getDeviceName(),
+        cerrarSesionAnterior
       })
     });
   } catch {
@@ -726,6 +792,23 @@ export async function apiLogin(input: { empresa: string; usuario: string; passwo
     body = await res.json();
   } catch {
     body = null;
+  }
+  // A 409 means the password was right — the account is simply logged in
+  // elsewhere. Branch before the failure path so it is never rendered as an
+  // inline "login failed" error the user has no way to answer.
+  if (res.status === 409) {
+    const b = (body && typeof body === 'object' ? body : {}) as Record<string, unknown>;
+    const sesion = parseSesionActiva(b.sesionActiva ?? b.SesionActiva);
+    const msg =
+      typeof b.message === 'string' && b.message
+        ? b.message
+        : 'Ya existe una sesión activa en otro dispositivo. ¿Deseas cerrarla y continuar aquí?';
+    analytics.track(AnalyticsEvents.sessionConflictShown, {
+      empresa: input.empresa,
+      device_name: sesion?.deviceName ?? null,
+      client_type: sesion?.clientType ?? null
+    });
+    throw new SessionConflictError(msg, sesion);
   }
   if (!res.ok || !body) {
     // Surface the backend's own message for every failure — including a 423/429

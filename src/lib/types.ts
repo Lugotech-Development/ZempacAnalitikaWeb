@@ -249,6 +249,24 @@ export type SessionInfo = {
   usuario: string;
 };
 
+/**
+ * The session already holding the single-session slot for this platform,
+ * returned by `POST /api/Auth/login` with a 409 when the credentials are valid
+ * but another device is logged in. Every field is nullable: `deviceName` is
+ * absent for sessions created before clients started sending it.
+ */
+export type SesionActiva = {
+  sessionId: number | null;
+  usuarioId: number | null;
+  username: string | null;
+  deviceName: string | null;
+  ipAddress: string | null;
+  userAgent: string | null;
+  clientType: number | null;
+  createdAt: string | null;
+  expiresAt: string | null;
+};
+
 // ─── Parsers ────────────────────────────────────────────────────────────
 // Upstream returns PascalCase keys (e.g. TotalVendidoMesActual). Convert to
 // our camelCase shapes, tolerant to missing/non-numeric values.
@@ -705,3 +723,25 @@ export const parseSobreStock = (j: J): RptSobreStockProducto => ({
   diasDeInventario: num(j.DiasDeInventario ?? j.diasDeInventario),
   estado: str(j.Estado ?? j.estado)
 });
+
+
+/**
+ * Parses the `sesionActiva` payload of a 409 login conflict. Returns null when
+ * the backend sends nothing usable, so the dialog can fall back to generic copy
+ * instead of rendering a card full of em dashes.
+ */
+export const parseSesionActiva = (raw: unknown): SesionActiva | null => {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const j = raw as J;
+  return {
+    sessionId: num(j.sessionId ?? j.SessionId),
+    usuarioId: num(j.usuarioId ?? j.UsuarioId),
+    username: str(j.username ?? j.Username),
+    deviceName: str(j.deviceName ?? j.DeviceName),
+    ipAddress: str(j.ipAddress ?? j.IpAddress),
+    userAgent: str(j.userAgent ?? j.UserAgent),
+    clientType: num(j.clientType ?? j.ClientType),
+    createdAt: str(j.createdAt ?? j.CreatedAt),
+    expiresAt: str(j.expiresAt ?? j.ExpiresAt)
+  };
+};
