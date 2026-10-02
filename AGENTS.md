@@ -211,6 +211,8 @@ Run `npm run build` after non-trivial changes — that's the canonical "does it 
 
 Deploy is handled by Firebase (`firebase deploy --only hosting` from a configured environment). The build output is `out/`.
 
+**Security headers / CSP** live in `firebase.json` (they only apply on Firebase Hosting, not `next dev`). The CSP is strict — `script-src 'self'` and `style-src 'self'`, no `'unsafe-inline'`. To make that work with a static export, `scripts/externalize-inline-scripts.mjs` (npm `postbuild` + Firebase `predeploy`) moves each page's inline RSC-payload `<script>`s into a content-hashed file under `out/_next/static/csp/`, and **fails the build** if any page still has an inline script or an inline `style="…"` attribute. Test header changes with `firebase emulators:start --only hosting` against a fresh `out/`. `trailingSlash: false` is set so `/x/` 301s to `/x` (before it, trailing-slash URLs fell into the wrong rewrite).
+
 ## Preview reports (placeholder data)
 
 Three reports currently render against placeholder fetchers in [`src/lib/mock.ts`](src/lib/mock.ts) because the upstream endpoints don't exist yet. They are wired into the SWR cache (`useApi`) and follow the same visual patterns as the real ones, so swapping the data source later is a one-file change. Each page displays a dashed "Vista previa" notice at the bottom.
@@ -257,3 +259,5 @@ When a real endpoint becomes available:
 - Don't clear the session on a **voluntary** logout without a confirmed backend revoke — the single-session backend would strand the account. Use `apiLogoutConfirmed()` / the `useLogout()` hook; only involuntary teardown (`apiLogout`) may clear unconditionally.
 - Don't auto-confirm a login 409, and don't send `cerrarSesionAnterior: true` on a first attempt — evicting another device is always an explicit user action taken in `SessionConflictModal`. Don't render the 409 as an inline login error either: its `message` is a question, and the form's `ErrorBanner` gives the user no way to answer it.
 - Don't create markdown docs unless explicitly asked.
+- Don't add `'unsafe-inline'` to the CSP, `next/image`, `next/script` inline snippets, or `style={…}` on **prerendered** markup — the CSP blocks inline styles in the HTML and the build guard fails. Use Tailwind classes; `style` set by client components after hydration is fine (React applies it via CSSOM). A new third-party origin (API host, analytics, CDN) must be added to the CSP in `firebase.json`.
+- Don't read `[sucursal]` route params with `useParams()` — the export prerenders only the `_` placeholder and Firebase rewrites every id to it; parse `usePathname()` instead.
