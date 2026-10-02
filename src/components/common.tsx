@@ -1,4 +1,3 @@
-import Image from 'next/image';
 import { Icon, type IconName } from './icon';
 
 export function EyebrowLabel({ children, className = '' }: { children: React.ReactNode; className?: string }) {
@@ -29,7 +28,10 @@ export function TrendBadge({
 export function ZempacLogo({ size = 36, withWordmark = true }: { size?: number; withWordmark?: boolean }) {
   return (
     <div className="flex items-center gap-2.5">
-      <Image src="/zempac-logo.png" alt="Zempac Analitika" width={size} height={size} priority className="rounded-full" style={{ width: size, height: size }} />
+      {/* Plain <img>, not next/image: next/image always prerenders an inline
+          `style` attribute, which the CSP (`style-src 'self'`) blocks. Images are
+          unoptimized in the static export anyway. */}
+      <img src="/zempac-logo.png" alt="Zempac Analitika" width={size} height={size} className="shrink-0 rounded-full" />
       {withWordmark && <span className="text-[20px] font-bold tracking-tight text-ink">Zempac Analitika</span>}
     </div>
   );

@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
-import { useParams } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import { useMemo, useState } from 'react';
 import { Icon, type IconName } from '@/components/icon';
 import { EyebrowLabel } from '@/components/common';
@@ -18,8 +18,10 @@ const DevolucionesChart = dynamic(() => import('@/components/series-chart'), {
 });
 
 export default function DevolucionesSucursalDetail() {
-  const params = useParams<{ sucursal: string }>();
-  const sucursalId = Number(params?.sucursal);
+  // Read the id from the URL, not the route param: the static export prerenders only
+  // the `_` placeholder and Firebase rewrites every /<id> to it, so the param is always `_`.
+  const pathname = usePathname();
+  const sucursalId = Number(pathname?.split('/').filter(Boolean).pop());
   const { status, data, error, errorVariant, reload } = useApi('rpt:devoluciones', apiDevoluciones);
 
   return (
