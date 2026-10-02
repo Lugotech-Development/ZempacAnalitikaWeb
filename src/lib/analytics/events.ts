@@ -13,6 +13,8 @@ export const AnalyticsEvents = {
   loginSuccess: 'login_success',
   loginFailure: 'login_failure',
   logout: 'logout',
+  sessionConflictShown: 'session_conflict_shown',
+  sessionConflictResolved: 'session_conflict_resolved',
   sessionExpired: 'session_expired',
   tokenRefresh: 'token_refresh',
   accessBlocked: 'access_blocked',

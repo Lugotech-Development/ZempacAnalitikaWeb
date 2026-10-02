@@ -91,15 +91,22 @@ Naming: `snake_case`, `object_action` where natural. Properties are metadata onl
 ### B. Auth / account
 | Event | Properties |
 |---|---|
-| `login_attempt` | `empresa, remember_session` |
+| `login_attempt` | `empresa, remember_session, cerrar_sesion_anterior` |
 | `login_success` | `empresa, user_id, role, ms_to_authenticate` |
 | `login_failure` | `empresa, error_code(401\|403\|network\|server), error_message` |
+| **`session_conflict_shown`** | `empresa, device_name, client_type(0=web\|1=mobile)` |
+| **`session_conflict_resolved`** | `empresa, action(confirmed\|cancelled)` |
 | `logout` | `reason(user\|session_expired\|access_blocked), session_duration_ms` |
 | `session_expired` | `screen, endpoint` |
 | `token_refresh` | `success, ms, triggered_by_endpoint` |
 | **`access_blocked`** | `code(TRIAL_VENCIDO…), empresa_nombre, fecha_vencimiento, screen` |
 
 `access_blocked` ties usage directly to subscription lifecycle — highest business value.
+
+The `session_conflict_*` pair covers the single-session 409 on login: `shown` fires in `apiLogin` when the
+backend reports another device holding the slot, `resolved` when the user answers the dialog. A 409 is **not**
+a `login_failure` — the credentials were valid. Their ratio measures how often people are blocked by their own
+second device, and `device_name` shows whether it is a real second device or a stale session nobody closed.
 
 ### C. Navigation / screen views — **time-on-page**
 | Event | Properties |

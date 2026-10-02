@@ -24,10 +24,11 @@ type Presentation = { title: string; icon: IconName };
 // anything not listed falls back to DEFAULT_PRESENTATION.
 const PRESENTATION: Record<string, Presentation> = {
   TRIAL_VENCIDO: { title: 'Periodo de prueba finalizado', icon: 'hourglass_top' },
-  // Single-session enforcement: the backend blocks this browser when a newer
-  // login of the same environment (web, clientType 0) takes over the account.
-  // Confirm the exact code with the backend team (plan coordination point #3);
-  // the modal already works for any code.
+  // Single-session enforcement. Kept defensively: as of the 409 login-conflict
+  // flow the backend does NOT block an evicted browser with this envelope — it
+  // simply revokes the session, so the device finds out on its next
+  // /api/auth/refresh and lands in SessionExpiredModal instead. Harmless if the
+  // code is never sent, and correct if it ever is.
   SESION_DUPLICADA: { title: 'Sesión iniciada en otro dispositivo', icon: 'smartphone' }
 };
 

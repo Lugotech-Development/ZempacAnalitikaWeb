@@ -5,8 +5,14 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useState } from 'react';
 import { Icon } from '@/components/icon';
 import { ZempacLogo, LugotechCredit } from '@/components/common';
-import { apiLogin, classifyError } from '@/lib/api';
+import { apiLogin, classifyError, SessionConflictError } from '@/lib/api';
 import { firstAccessibleRoute } from '@/lib/permissions';
+import { SessionConflictModal } from '@/components/session-conflict-modal';
+import { analytics } from '@/lib/analytics/analytics';
+import { AnalyticsEvents } from '@/lib/analytics/events';
+import type { SesionActiva } from '@/lib/types';
+
+type Conflict = { sesion: SesionActiva | null; message: string };
 
 export default function LoginPage() {
   return (
@@ -27,6 +33,11 @@ function LoginForm() {
   const [showPwd, setShowPwd] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  // Set when login comes back 409: the credentials were accepted, but another
+  // device holds the single session slot. Nothing is closed until the user says so.
+  const [conflict, setConflict] = useState<Conflict | null>(null);
+  const [conflictBusy, setConflictBusy] = useState(false);
+  const [conflictError, setConflictError] = useState<string | null>(null);
 
   const submitEmpresa = (e: React.FormEvent) => {
     e.preventDefault();
@@ -38,6 +49,15 @@ function LoginForm() {
     setStep('credenciales');
   };
 
+  const credentials = () => ({ empresa: empresa.trim(), usuario: usuario.trim(), password });
+
+  const goToApp = () => {
+    // Land on where they came from, else the first report they can access
+    // (the dashboard/Principal may not be permitted for this profile).
+    const dest = search.get('from') ?? firstAccessibleRoute() ?? '/dashboard';
+    router.replace(dest);
+  };
+
   const submitLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!usuario.trim() || !password) {
@@ -47,20 +67,53 @@ function LoginForm() {
     setError(null);
     setLoading(true);
     try {
-      await apiLogin({
-        empresa: empresa.trim(),
-        usuario: usuario.trim(),
-        password
-      });
-      // Land on where they came from, else the first report they can access
-      // (the dashboard/Principal may not be permitted for this profile).
-      const dest = search.get('from') ?? firstAccessibleRoute() ?? '/dashboard';
-      router.replace(dest);
+      await apiLogin(credentials());
+      goToApp();
     } catch (e) {
-      const { variant, message } = classifyError(e);
-      setError(variant === 'network' ? 'No se pudo conectar con el servidor. Verifica tu conexión.' : message || 'No se pudo iniciar sesión');
+      if (e instanceof SessionConflictError) {
+        // Not a failed login — a question. Hand it to the dialog.
+        setConflict({ sesion: e.sesionActiva, message: e.message });
+        setConflictError(null);
+        setLoading(false);
+        return;
+      }
+      setError(describeError(e));
       setLoading(false);
     }
+  };
+
+  /**
+   * The user explicitly confirmed the eviction: retry the identical login with
+   * `cerrarSesionAnterior`, which revokes the other session server-side.
+   */
+  const confirmEvict = async () => {
+    setConflictBusy(true);
+    setConflictError(null);
+    try {
+      await apiLogin(credentials(), { cerrarSesionAnterior: true });
+      analytics.track(AnalyticsEvents.sessionConflictResolved, { empresa: empresa.trim(), action: 'confirmed' });
+      goToApp(); // keep the dialog busy until navigation unmounts the form
+    } catch (e) {
+      if (e instanceof SessionConflictError) {
+        // A different device claimed the slot between opening the dialog and
+        // confirming. Show who holds it now instead of evicting blind.
+        setConflict({ sesion: e.sesionActiva, message: e.message });
+        setConflictError('Otro dispositivo inició sesión mientras confirmabas. Revisa los datos e inténtalo de nuevo.');
+        setConflictBusy(false);
+        return;
+      }
+      // Anything else (password changed, account locked, network) belongs on
+      // the form, not in a dialog about sessions.
+      setConflict(null);
+      setConflictBusy(false);
+      setError(describeError(e));
+    }
+  };
+
+  const cancelConflict = () => {
+    analytics.track(AnalyticsEvents.sessionConflictResolved, { empresa: empresa.trim(), action: 'cancelled' });
+    setConflict(null);
+    setConflictError(null);
   };
 
   return (
@@ -113,6 +166,8 @@ function LoginForm() {
                 onClick={() => {
                   setStep('empresa');
                   setError(null);
+                  setConflict(null);
+                  setConflictError(null);
                   setUsuario('');
                   setPassword('');
                 }}
@@ -190,8 +245,25 @@ function LoginForm() {
       <footer className="relative z-10 px-6 pb-6 flex justify-center">
         <LugotechCredit />
       </footer>
+
+      {conflict && (
+        <SessionConflictModal
+          sesion={conflict.sesion}
+          message={conflict.message}
+          pending={conflictBusy}
+          error={conflictError}
+          onConfirm={() => void confirmEvict()}
+          onCancel={cancelConflict}
+        />
+      )}
     </div>
   );
+}
+
+function describeError(e: unknown): string {
+  const { variant, message } = classifyError(e);
+  if (variant === 'network') return 'No se pudo conectar con el servidor. Verifica tu conexión.';
+  return message || 'No se pudo iniciar sesión';
 }
 
 function ErrorBanner({ message }: { message: string }) {

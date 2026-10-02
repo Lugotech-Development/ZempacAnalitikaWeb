@@ -47,6 +47,19 @@ export function fmtDate(iso: string | null | undefined): string {
   });
 }
 
+export function fmtDateTime(iso: string | null | undefined): string {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleString('es-HN', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit'
+  });
+}
+
 export function fmtDayMonth(iso: string | null | undefined): string {
   if (!iso) return '';
   const d = new Date(iso);

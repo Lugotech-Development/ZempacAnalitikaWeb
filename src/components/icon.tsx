@@ -38,6 +38,8 @@ import Insights from '@material-symbols/svg-400/outlined/monitoring.svg';
 import Verified from '@material-symbols/svg-400/outlined/verified_user.svg';
 import AutoAwesome from '@material-symbols/svg-400/outlined/bolt.svg';
 import Smartphone from '@material-symbols/svg-400/outlined/mobile.svg';
+import Devices from '@material-symbols/svg-400/outlined/devices.svg';
+import Public from '@material-symbols/svg-400/outlined/public.svg';
 import Power from '@material-symbols/svg-400/outlined/power.svg';
 import ShowChart from '@material-symbols/svg-400/outlined/show_chart.svg';
 import GpsFixed from '@material-symbols/svg-400/outlined/location_searching.svg';
@@ -111,6 +113,8 @@ const REGISTRY = {
   verified_user: Verified,
   auto_awesome: AutoAwesome,
   smartphone: Smartphone,
+  devices: Devices,
+  public: Public,
   power: Power,
   show_chart: ShowChart,
   gps_fixed: GpsFixed,
